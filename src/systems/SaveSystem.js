@@ -37,6 +37,8 @@ export default class SaveSystem {
     const inventoryData = {
       coins: inv.getCoins(),
       items: inv.getAllItems(),
+      slots: inv.getSlots ? inv.getSlots() : null,
+      slotCapacity: inv.getSlotCapacity ? inv.getSlotCapacity() : 16,
     };
 
     // 3. Serialize Script Cards
@@ -77,10 +79,12 @@ export default class SaveSystem {
     const unlockedZones = this.scene.unlockedZones;
     const minedOres = this.scene.minedOres || [];
     const machines = this.scene.machineSystem ? this.scene.machineSystem.getSaveState() : [];
+    const buildings = this.scene.buildingSystem ? this.scene.buildingSystem.getSaveState() : [];
+    const wildlife = this.scene.wildlifeSystem ? this.scene.wildlifeSystem.getSaveState() : null;
     const specialBuyer = this.scene.specialBuyerSystem ? this.scene.specialBuyerSystem.getSaveState() : null;
 
     return {
-      version: 1,
+      version: 2,
       timestamp: Date.now(),
       profile: profileData,
       inventory: inventoryData,
@@ -90,7 +94,18 @@ export default class SaveSystem {
       unlockedZones,
       minedOres,
       machines,
+      buildings,
+      wildlife,
       specialBuyer,
+      operations: this.scene.operationsSystem?.getSaveState(),
+      warehouse: this.scene.warehouse?.getSlots ? this.scene.warehouse.getSlots() : this.scene.warehouse?.getAll(),
+      warehouseSlotCapacity: this.scene.warehouse?.getSlotCapacity ? this.scene.warehouse.getSlotCapacity() : 24,
+      warehouseItems: this.scene.warehouse?.getAll ? this.scene.warehouse.getAll() : null,
+      hotbar: this.scene.hotbar ? {
+        slots: [...this.scene.hotbar.slots],
+        quantities: [...this.scene.hotbar.slotQuantities],
+        activeSlot: this.scene.hotbar.activeSlot,
+      } : null,
     };
   }
 
@@ -138,7 +153,7 @@ export default class SaveSystem {
    * @returns {boolean}
    */
   applySaveData(data) {
-    if (!data || data.version !== 1) return false;
+    if (!data || ![1, 2].includes(data.version)) return false;
 
     const profile = this.scene.profileSystem;
     const inv = this.scene.inventorySystem;
@@ -154,6 +169,12 @@ export default class SaveSystem {
       if (data.profile.upgrades) {
         profile.upgrades = { ...profile.upgrades, ...data.profile.upgrades };
       }
+      if (inv.setSlotCapacity && profile.upgrades?.backpackSlots) {
+        inv.setSlotCapacity(profile.getUpgradeValue('backpackSlots'));
+      }
+      if (this.scene.warehouse?.setSlotCapacity && profile.upgrades?.warehouseSlots) {
+        this.scene.warehouse.setSlotCapacity(profile.getUpgradeValue('warehouseSlots'));
+      }
       profile.events.emit('profile-changed', {
         name: profile.name,
         level: profile.level,
@@ -165,11 +186,33 @@ export default class SaveSystem {
     // 2. Restore Inventory
     if (data.inventory) {
       inv.coins = data.inventory.coins;
-      inv.items.clear();
-      if (Array.isArray(data.inventory.items)) {
-        data.inventory.items.forEach((item) => {
-          inv.items.set(item.id, item.count);
-        });
+      const slotCap = data.inventory.slotCapacity || (profile.getUpgradeValue ? profile.getUpgradeValue('backpackSlots') : 16);
+      if (inv.setSlotCapacity) inv.setSlotCapacity(slotCap);
+
+      if (inv.container) {
+        inv.container.clear();
+        if (Array.isArray(data.inventory.slots)) {
+          // v2 save with exact slot positions
+          data.inventory.slots.forEach((slotItem, idx) => {
+            if (slotItem && typeof slotItem.id === 'string' && slotItem.count > 0) {
+              inv.setSlot(idx, slotItem);
+            }
+          });
+        } else if (Array.isArray(data.inventory.items)) {
+          // v1 migration: fill slots sequentially with stack limits
+          data.inventory.items.forEach((item) => {
+            if (item && item.id && item.count > 0) {
+              inv.container.addItem(item.id, item.count);
+            }
+          });
+        }
+      } else {
+        inv.items.clear();
+        if (Array.isArray(data.inventory.items)) {
+          data.inventory.items.forEach((item) => {
+            inv.items.set(item.id, item.count);
+          });
+        }
       }
       inv.events.emit('coins-changed', { coins: inv.coins, delta: 0 });
       inv.events.emit('inventory-changed', { itemId: '', count: 0, delta: 0 });
@@ -270,16 +313,18 @@ export default class SaveSystem {
     if (data.unlockedZones) {
       this.scene.unlockedZones = { ...this.scene.unlockedZones, ...data.unlockedZones };
     } else {
-      this.scene.unlockedZones = { zone2: false, zone3: false, zone4: false };
+      this.scene.unlockedZones = { zone2: false, zone3: false, zone4: false, zone5: false };
     }
     if (this.scene.gridManager) {
       this.scene.gridManager.setGate(19, 10, 'zone2', !this.scene.unlockedZones.zone2);
       this.scene.gridManager.setGate(10, 19, 'zone3', !this.scene.unlockedZones.zone3);
       this.scene.gridManager.setGate(39, 20, 'zone4', !this.scene.unlockedZones.zone4);
+      this.scene.gridManager.setGate(20, 39, 'zone5', !this.scene.unlockedZones.zone5);
       if (this.scene.updateTileSprite) {
         this.scene.updateTileSprite(19, 10);
         this.scene.updateTileSprite(10, 19);
         this.scene.updateTileSprite(39, 20);
+        this.scene.updateTileSprite(20, 39);
       }
     }
     if (typeof this.scene._updateCameraBounds === 'function') {
@@ -301,7 +346,14 @@ export default class SaveSystem {
       this.scene.minedOres = [];
     }
 
-    // 8. Restore Machine States & update tiles
+    // 8. Restore player buildings before machine state, so crafted machinery
+    // can be reconstructed by the existing machine-state loader.
+    if (this.scene.buildingSystem) {
+      this.scene.buildingSystem.reset();
+      this.scene.buildingSystem.loadSaveState(data.buildings);
+    }
+
+    // 9. Restore Machine States & update tiles
     if (data.machines && this.scene.machineSystem) {
       this.scene.machineSystem.loadSaveState(data.machines);
       if (this.scene.gridManager) {
@@ -314,7 +366,13 @@ export default class SaveSystem {
       }
     }
 
-    // 9. Restore Special Buyer state & NPC visual
+    // 10. Restore passive explore-zone life after its gate state is known.
+    if (this.scene.wildlifeSystem) {
+      this.scene.wildlifeSystem.destroy();
+      this.scene.wildlifeSystem.loadSaveState(data.wildlife);
+    }
+
+    // 11. Restore Special Buyer state & NPC visual
     if (data.specialBuyer && this.scene.specialBuyerSystem) {
       this.scene.specialBuyerSystem.loadSaveState(data.specialBuyer);
       const active = this.scene.specialBuyerSystem.getActiveBuyer();
@@ -325,6 +383,50 @@ export default class SaveSystem {
       }
     }
 
+    // Optional fields keep existing version-1 saves compatible.
+    if (this.scene.warehouse) {
+      const wh = this.scene.warehouse;
+      const whCap = data.warehouseSlotCapacity || (profile.getUpgradeValue ? profile.getUpgradeValue('warehouseSlots') : 24);
+      if (wh.setSlotCapacity) wh.setSlotCapacity(whCap);
+
+      if (wh.container) {
+        wh.container.clear();
+        if (Array.isArray(data.warehouse)) {
+          const isSlotList = data.version >= 2 && (data.warehouse.includes(null) || data.warehouse.some(entry => entry && typeof entry === 'object' && 'id' in entry && 'count' in entry));
+          if (isSlotList) {
+            data.warehouse.forEach((slotItem, idx) => {
+              if (slotItem && typeof slotItem.id === 'string' && slotItem.count > 0) {
+                wh.setSlot(idx, slotItem);
+              }
+            });
+          } else {
+            // v1 migration: items list
+            data.warehouse.forEach((entry) => {
+              if (entry && typeof entry.id === 'string' && Number.isSafeInteger(entry.count) && entry.count > 0) {
+                wh.container.addItem(entry.id, entry.count);
+              }
+            });
+          }
+        }
+      } else {
+        wh.items.clear();
+        if (Array.isArray(data.warehouse)) {
+          data.warehouse.forEach(({ id, count }) => {
+            if (typeof id === 'string' && Number.isSafeInteger(count) && count > 0) wh.items.set(id, count);
+          });
+        }
+      }
+      wh.events.emit('changed', { action: 'restore' });
+    }
+    if (data.hotbar && this.scene.hotbar) {
+      const hotbar = this.scene.hotbar;
+      hotbar.slots = hotbar.slots.map((_, i) => typeof data.hotbar.slots?.[i] === 'string' ? data.hotbar.slots[i] : null);
+      hotbar.slotQuantities = hotbar.slots.map((item, i) => item && Number.isSafeInteger(data.hotbar.quantities?.[i]) ? Math.max(0, data.hotbar.quantities[i]) : 0);
+      hotbar.setActiveSlot(Number.isInteger(data.hotbar.activeSlot) ? data.hotbar.activeSlot : 0);
+      hotbar.refresh();
+    }
+    this.scene.operationsSystem?.loadSaveState(data.operations);
+    this.scene.operationsUI?.render();
     return true;
   }
 }

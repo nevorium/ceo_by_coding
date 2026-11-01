@@ -296,6 +296,18 @@ export default class ScriptSandbox {
         };
         interpreter.setProperty(droneObj, 'transferToWarehouse', interpreter.createAsyncFunction(transferToWarehouseWrapper));
 
+        // transferFromWarehouse(itemId)
+        const transferFromWarehouseWrapper = function(itemId, callback) {
+          const item = interpreter.pseudoToNative(itemId);
+          self.droneAPI._handleTransferFromWarehouse(item).then(() => {
+            callback();
+            self.runInterpreter();
+          }).catch((err) => {
+            self.handleAsyncError(err);
+          });
+        };
+        interpreter.setProperty(droneObj, 'transferFromWarehouse', interpreter.createAsyncFunction(transferFromWarehouseWrapper));
+
         // supplyFrom(targetDroneId)
         const supplyFromWrapper = function(targetDroneId, callback) {
           self.droneAPI._handleSupplyFrom(targetDroneId).then(() => {
@@ -407,11 +419,40 @@ export default class ScriptSandbox {
         };
         interpreter.setProperty(droneObj, 'checkFrontItem', interpreter.createNativeFunction(checkFrontItemWrapper));
 
+        // depositToConveyor(itemId)
+        const depositToConveyorWrapper = function(itemId, callback) {
+          const item = interpreter.pseudoToNative(itemId);
+          self.droneAPI._handleDepositToConveyor(item).then(() => {
+            callback();
+            self.runInterpreter();
+          }).catch((err) => {
+            self.handleAsyncError(err);
+          });
+        };
+        interpreter.setProperty(droneObj, 'depositToConveyor', interpreter.createAsyncFunction(depositToConveyorWrapper));
+
         // checkNode()
         const checkNodeWrapper = function() {
           return self.droneAPI._checkNode();
         };
         interpreter.setProperty(droneObj, 'checkNode', interpreter.createNativeFunction(checkNodeWrapper));
+
+        // checkGround()
+        const checkGroundWrapper = function() {
+          return self.droneAPI._checkGround();
+        };
+        interpreter.setProperty(droneObj, 'checkGround', interpreter.createNativeFunction(checkGroundWrapper));
+
+        // collect()
+        const collectWrapper = function(callback) {
+          self.droneAPI._handleCollect().then(() => {
+            callback();
+            self.runInterpreter();
+          }).catch((err) => {
+            self.handleAsyncError(err);
+          });
+        };
+        interpreter.setProperty(droneObj, 'collect', interpreter.createAsyncFunction(collectWrapper));
 
         // getBatteryLevel()
         const getBatteryLevelWrapper = function() {
@@ -831,6 +872,7 @@ export default class ScriptSandbox {
           if (nx === 19 && ny >= 0 && ny <= 19 && clonedTiles[ny][nx].isLocked) return false;
           if (ny === 19 && nx >= 0 && nx <= 39 && clonedTiles[ny][nx].isLocked) return false;
           if (nx === 39 && ny >= 0 && ny <= 39 && clonedTiles[ny][nx].isLocked) return false;
+          if (ny === 39 && (nx !== 20 || clonedTiles[ny][nx].isLocked)) return false;
           if (clonedTiles[ny][nx].isMachine) return false;
 
           mockTileX = nx;
@@ -926,6 +968,18 @@ export default class ScriptSandbox {
           simulatedDurationMs += 300;
         }));
 
+        // Deposit one carried item to the empty conveyor directly ahead.
+        ib.setProperty(droneObj, 'depositToConveyor', ib.createNativeFunction((itemId) => {
+          const item = ib.pseudoToNative(itemId);
+          const front = getFront();
+          const tile = clonedTiles[front.y]?.[front.x];
+          if (tile?.isConveyor && tile.conveyorItem === 'none' && (mockDroneInv.get(item) || 0) > 0) {
+            tile.conveyorItem = item;
+            mockDroneInv.set(item, mockDroneInv.get(item) - 1);
+          }
+          simulatedDurationMs += 300;
+        }));
+
         // PushItem
         ib.setProperty(droneObj, 'pushItem', ib.createNativeFunction((direction) => {
           const front = getFront();
@@ -977,6 +1031,13 @@ export default class ScriptSandbox {
           return (tile && (tile.isOre || tile.oreType === 'depleted')) ? tile.oreType : 'none';
         }));
 
+        // Explore drops are not seeded into the benchmark simulation, but the
+        // API remains available so scripts can be measured without crashing.
+        ib.setProperty(droneObj, 'checkGround', ib.createNativeFunction(() => 'none'));
+        ib.setProperty(droneObj, 'collect', ib.createNativeFunction(() => {
+          simulatedDurationMs += 300;
+        }));
+
         // getBatteryLevel
         ib.setProperty(droneObj, 'getBatteryLevel', ib.createNativeFunction(() => {
           return Math.max(0, 500 - stepsRun);
@@ -1018,6 +1079,15 @@ export default class ScriptSandbox {
           const curCount = Array.from(mockDroneInv.values()).reduce((a,b)=>a+b, 0);
           return curCount >= drone.getInventoryCapacity();
         }));
+        ib.setProperty(droneObj, 'getInventoryCount', ib.createNativeFunction(() => {
+          return Array.from(mockDroneInv.values()).reduce((a, b) => a + b, 0);
+        }));
+        ib.setProperty(droneObj, 'getInventoryCapacity', ib.createNativeFunction(() => drone.getInventoryCapacity()));
+        ib.setProperty(droneObj, 'hasDroneItem', ib.createNativeFunction((itemId, qty) => {
+          const item = ib.pseudoToNative(itemId);
+          const count = Number(ib.pseudoToNative(qty)) || 1;
+          return (mockDroneInv.get(item) || 0) >= count;
+        }));
         ib.setProperty(droneObj, 'transferToWarehouse', ib.createNativeFunction(() => {
           for (const [id, count] of mockDroneInv.entries()) {
             mockWarehouseInv.set(id, (mockWarehouseInv.get(id) || 0) + count);
@@ -1025,11 +1095,29 @@ export default class ScriptSandbox {
           mockDroneInv.clear();
           simulatedDurationMs += 300;
         }));
+        ib.setProperty(droneObj, 'transferFromWarehouse', ib.createNativeFunction((itemId) => {
+          const item = ib.pseudoToNative(itemId);
+          const carrying = Array.from(mockDroneInv.values()).reduce((a, b) => a + b, 0);
+          const space = Math.max(0, drone.getInventoryCapacity() - carrying);
+          const available = mockWarehouseInv.get(item) || 0;
+          const amount = Math.min(space, available);
+          if (amount > 0) {
+            mockWarehouseInv.set(item, available - amount);
+            mockDroneInv.set(item, (mockDroneInv.get(item) || 0) + amount);
+          }
+          simulatedDurationMs += 300;
+        }));
         ib.setProperty(droneObj, 'transferToPlayer', ib.createNativeFunction(() => {
           for (const [id, count] of mockDroneInv.entries()) {
             mockPlayerInv.set(id, (mockPlayerInv.get(id) || 0) + count);
           }
           mockDroneInv.clear();
+          simulatedDurationMs += 300;
+        }));
+        ib.setProperty(droneObj, 'sell', ib.createNativeFunction(() => {
+          for (const [id, count] of mockDroneInv.entries()) {
+            if (!id.endsWith('_seed') && !id.startsWith('module_')) mockDroneInv.delete(id);
+          }
           simulatedDurationMs += 300;
         }));
         ib.setProperty(droneObj, 'depositToMachine', ib.createNativeFunction((machineId, itemId, qty) => {

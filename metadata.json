@@ -1,0 +1,6 @@
+{
+  "name": "DroneHarvest — Code Your Farm",
+  "description": "Code-Driven Automation Pixel RPG - Program drones with JavaScript to automate your farm, manage logistics, and explore zones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

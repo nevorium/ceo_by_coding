@@ -3,47 +3,19 @@
  * Manages Monaco initialization, script tab rendering, and run/stop controls.
  */
 import * as monaco from 'monaco-editor';
-
-const ITEM_METADATA = {
-  plow: { name: 'Plow', emoji: '🔨', desc: 'Cangkul tanah rumput.', rarity: 'Common', sector: 'Peralatan' },
-  watering_can: { name: 'Watering Can', emoji: '🚿', desc: 'Siram tanah cangkulan.', rarity: 'Common', sector: 'Peralatan' },
-  wheat_seed: { name: 'Wheat Seed', emoji: '🌾', desc: 'Benih gandum.', rarity: 'Common', sector: 'Pertanian' },
-  wheat: { name: 'Wheat', emoji: '🌾', desc: 'Hasil panen gandum. Siap digiling menjadi tepung.', rarity: 'Common', sector: 'Pertanian' },
-  potato_seed: { name: 'Potato Seed', emoji: '🥔', desc: 'Benih kentang.', rarity: 'Common', sector: 'Pertanian' },
-  potato: { name: 'Potato', emoji: '🥔', desc: 'Hasil panen kentang. Siap diproses menjadi starch.', rarity: 'Common', sector: 'Pertanian' },
-  cactus_seed: { name: 'Cactus Seed', emoji: '🌵', desc: 'Benih kaktus.', rarity: 'Common', sector: 'Pertanian' },
-  cactus: { name: 'Cactus Crop', emoji: '🌵', desc: 'Hasil panen kaktus. Buah gurun serbaguna.', rarity: 'Rare', sector: 'Pertanian' },
-  apple_tree_seed: { name: 'Apple Seed', emoji: '🍏', desc: 'Benih apel.', rarity: 'Common', sector: 'Pertanian' },
-  apple_tree: { name: 'Apple Fruit', emoji: '🍎', desc: 'Hasil panen apel. Buah segar kaya vitamin.', rarity: 'Rare', sector: 'Pertanian' },
-  coal: { name: 'Coal', emoji: '🌑', desc: 'Bahan bakar untuk Smelter.', rarity: 'Common', sector: 'Tambang' },
-  copper_ore: { name: 'Copper Ore', emoji: '🟫', desc: 'Bijih tembaga mentah. Siap dilebur.', rarity: 'Common', sector: 'Tambang' },
-  iron_ore: { name: 'Iron Ore', emoji: '⬜', desc: 'Bijih besi mentah. Hasil hilirisasi tambang Eli.', rarity: 'Common', sector: 'Tambang' },
-  gold_ore: { name: 'Gold Ore', emoji: '🟨', desc: 'Bijih emas mentah bernilai tinggi.', rarity: 'Rare', sector: 'Tambang' },
-  copper_ingot: { name: 'Copper Ingot', emoji: '🧱', desc: 'Plat tembaga hasil leburan Smelter.', rarity: 'Rare', sector: 'Artisan Refineri' },
-  iron_ingot: { name: 'Iron Ingot', emoji: '🪙', desc: 'Plat besi hasil leburan Smelter.', rarity: 'Rare', sector: 'Artisan Refineri' },
-  gold_ingot: { name: 'Gold Ingot', emoji: '👑', desc: 'Batangan emas murni hasil leburan Smelter.', rarity: 'Epic', sector: 'Artisan Refineri' },
-  flour: { name: 'Flour', emoji: '🍚', desc: 'Tepung terigu hasil gilingan Mill.', rarity: 'Common', sector: 'Artisan Refineri' },
-  bread: { name: 'Bread', emoji: '🍞', desc: 'Roti lezat hasil panggangan Bakery.', rarity: 'Rare', sector: 'Artisan Refineri' },
-  apple_juice: { name: 'Apple Juice', emoji: '🧃', desc: 'Jus apel segar hasil Press.', rarity: 'Rare', sector: 'Artisan Refineri' },
-  apple_jam: { name: 'Apple Jam', emoji: '🏺', desc: 'Selai apel hasil rebusan Boiler.', rarity: 'Rare', sector: 'Artisan Refineri' },
-  potato_starch: { name: 'Potato Starch', emoji: '🥣', desc: 'Tepung pati kentang hasil Purifier.', rarity: 'Common', sector: 'Artisan Refineri' },
-  chips: { name: 'Potato Chips', emoji: '🍟', desc: 'Kripik kentang gurih hasil Fryer.', rarity: 'Rare', sector: 'Artisan Refineri' },
-  wire: { name: 'Copper Wire', emoji: '➰', desc: 'Kabel tembaga hasil Assembler.', rarity: 'Epic', sector: 'Artisan Refineri' },
-  gear: { name: 'Iron Gear', emoji: '⚙️', desc: 'Roda gigi besi hasil Assembler.', rarity: 'Epic', sector: 'Artisan Refineri' },
-  chip: { name: 'Microchip', emoji: '🎛️', desc: 'Microchip canggih hasil laboratorium.', rarity: 'Epic', sector: 'Artisan Refineri' },
-  key_zone2: { name: 'Artisan Key', emoji: '🔑', desc: 'Kunci untuk membuka Zone 2.', rarity: 'Epic', sector: 'Umum' },
-  key_zone3: { name: 'Mining Key', emoji: '🗝️', desc: 'Kunci untuk membuka Zone 3.', rarity: 'Epic', sector: 'Umum' },
-  key_zone4: { name: 'Lab Key', emoji: '💳', desc: 'Kunci untuk membuka Zone 4.', rarity: 'Epic', sector: 'Umum' },
-  module_farming: { name: 'Farming Mod', emoji: '🚜', desc: 'Modul pertanian otonom.', rarity: 'Rare', sector: 'Upgrade' },
-  module_supplier: { name: 'Supplier Mod', emoji: '📦', desc: 'Modul logistik suplai otonom.', rarity: 'Rare', sector: 'Upgrade' },
-  module_seller: { name: 'Seller Mod', emoji: '💰', desc: 'Modul beli/jual otonom.', rarity: 'Rare', sector: 'Upgrade' },
-  module_mining: { name: 'Mining Mod', emoji: '⛏️', desc: 'Modul tambang otonom.', rarity: 'Rare', sector: 'Upgrade' },
-  module_bigger_seller: { name: 'Bigger Seller Mod', emoji: '📈', desc: 'Modul perdagangan kapasitas besar.', rarity: 'Legendary', sector: 'Upgrade' },
-  module_super_carrier: { name: 'Super Carrier Mod', emoji: '🚀', desc: 'Modul pengangkut berkecepatan maksimum.', rarity: 'Legendary', sector: 'Upgrade' },
-  module_advanced_farming: { name: 'Advanced Farming Mod', emoji: '🚜', desc: 'Modul tani canggih berkecepatan tinggi.', rarity: 'Legendary', sector: 'Upgrade' },
-  module_speed_booster: { name: 'Speed Booster Mod', emoji: '⚡', desc: 'Modul penambah kecepatan logistik.', rarity: 'Legendary', sector: 'Upgrade' },
-  stone: { name: 'Stone', emoji: '🪨', desc: 'Batu biasa dari hasil tambang.', rarity: 'Common', sector: 'Tambang' }
+import { pixelIcon } from '../rendering/PixelAssets.js';
+self.MonacoEnvironment = {
+  getWorker(_moduleId, label) {
+    if (label === 'javascript' || label === 'typescript') {
+      return new Worker(new URL('../../node_modules/monaco-editor/esm/vs/language/typescript/ts.worker.js', import.meta.url), { type: 'module' });
+    }
+    return new Worker(new URL('../../node_modules/monaco-editor/esm/vs/editor/editor.worker.js', import.meta.url), { type: 'module' });
+  },
 };
+
+import { ITEM_METADATA } from '../data/items.js';
+import { fillColorCSS } from '../utils/fillColor.js';
+
 
 export class EditorBridge {
   /**
@@ -67,11 +39,17 @@ export class EditorBridge {
     this.isBackpackOpen = false;
     this.isWarehouseOpen = false;
 
+    const panels = scene.panelManager;
+    panels.register('journal-panel');
+    panels.register('backpack-popup', () => { this.isBackpackOpen = false; });
+    panels.register('warehouse-popup', () => { this.isWarehouseOpen = false; });
+    panels.register('smartphone-chat', () => { this.isPhoneOpen = false; });
     this._initMonaco();
     this._setupPanelTabs();
     this._setupTabUI();
     this._setupControls();
     this._setupToggle();
+    this._setupResizablePanel();
     this._setupSandboxCallbacks();
     this._setupCloudSyncUI();
     this._setupSmartphoneUI();
@@ -101,17 +79,17 @@ export class EditorBridge {
         { token: 'type', foreground: '4FC3F7' },
       ],
       colors: {
-        'editor.background': '#0d0d1a',
-        'editor.foreground': '#cccccc',
-        'editor.lineHighlightBackground': '#1a1a2e',
+        'editor.background': '#101a21',
+        'editor.foreground': '#edf0d4',
+        'editor.lineHighlightBackground': '#101a21',
         'editor.selectionBackground': '#0f346066',
-        'editorCursor.foreground': '#e94560',
-        'editorLineNumber.foreground': '#444466',
-        'editorLineNumber.activeForeground': '#e94560',
+        'editorCursor.foreground': '#9b794e',
+        'editorLineNumber.foreground': '#42535b',
+        'editorLineNumber.activeForeground': '#9b794e',
         'editor.selectionHighlightBackground': '#0f346033',
-        'editorWidget.background': '#16213e',
-        'editorSuggestWidget.background': '#16213e',
-        'editorSuggestWidget.selectedBackground': '#0f3460',
+        'editorWidget.background': '#22343c',
+        'editorSuggestWidget.background': '#22343c',
+        'editorSuggestWidget.selectedBackground': '#22343c',
       },
     });
 
@@ -145,15 +123,23 @@ export class EditorBridge {
     this._registerDroneCompletions();
 
     // Save on change (debounced)
-    let saveTimeout;
     this.editor.onDidChangeModelContent(() => {
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        const activeScript = this.scriptManager.getActiveScript();
-        if (activeScript) {
-          this.scriptManager.updateCode(activeScript.id, this.editor.getValue());
-        }
-      }, 500);
+      if (this._loadingEditorContent) return;
+      clearTimeout(this._saveCodeTimeout);
+      const activeScript = this.scriptManager.getActiveScript();
+      if (!activeScript) return;
+      const { id } = activeScript;
+      const code = this.editor.getValue();
+      this._saveCodeTimeout = setTimeout(() => this.scriptManager.updateCode(id, code), 500);
+    });
+    this._onPageHide = () => this._syncMonacoActiveScriptCode();
+    window.addEventListener('beforeunload', this._onPageHide);
+    window.addEventListener('pagehide', this._onPageHide);
+    this.scene.events.once('shutdown', () => {
+      this._syncMonacoActiveScriptCode();
+      window.removeEventListener('beforeunload', this._onPageHide);
+      window.removeEventListener('pagehide', this._onPageHide);
+      this.editor.dispose();
     });
   }
 
@@ -327,11 +313,7 @@ export class EditorBridge {
       tab.innerHTML = `<span class="color-dot" style="background:${script.color}"></span>${script.name}`;
 
       tab.addEventListener('click', () => {
-        this.scriptManager.setActiveScript(script.id);
-        if (this.editor) {
-          this.editor.setValue(script.code);
-        }
-        this._renderTabs();
+        this._selectScript(script.id);
       });
 
       tabContainer.appendChild(tab);
@@ -343,13 +325,10 @@ export class EditorBridge {
     newButton.textContent = '+ New';
     newButton.addEventListener('click', () => {
       if (this.scriptManager.canCreateScript()) {
+        this._syncMonacoActiveScriptCode();
         const script = this.scriptManager.createScript();
         if (script) {
-          this.scriptManager.setActiveScript(script.id);
-          if (this.editor) {
-            this.editor.setValue(script.code);
-          }
-          this._renderTabs();
+          this._selectScript(script.id);
         }
       } else {
         const { current, max } = this.scriptManager.getSlotCount();
@@ -401,18 +380,18 @@ export class EditorBridge {
           return;
         }
 
-        this.consoleManager.addLine(`▶ Executing "${activeScript.name}" on ${drone.label}...`, 'info');
+        this.consoleManager.addLine(` Executing "${activeScript.name}" on ${drone.label}...`, 'info');
 
         // Run Benchmark to calculate simulated offline rates
         const benchmarkResult = sandbox.benchmark(code);
         if (benchmarkResult.success) {
           drone.productionRates = benchmarkResult.rates;
           drone.benchmarkError = null;
-          this.consoleManager.addLine(`⚡ Script Benchmark: Success! Production rates calculated.`, 'info');
+          this.consoleManager.addLine(` Script Benchmark: Success! Production rates calculated.`, 'info');
         } else {
           drone.productionRates = null;
           drone.benchmarkError = benchmarkResult.error;
-          this.consoleManager.addLine(`⚠️ Script Benchmark: Has crash or error: ${benchmarkResult.error}`, 'warn');
+          this.consoleManager.addLine(` Script Benchmark: Has crash or error: ${benchmarkResult.error}`, 'warn');
         }
 
         drone.setStatus('running');
@@ -449,31 +428,166 @@ export class EditorBridge {
     }
   }
 
-  /** Setup editor toggle */
-  _setupToggle() {
-    const btnToggle = document.getElementById('btn-toggle-editor');
-    const editorPanel = document.getElementById('editor-panel');
+  openTab(name) {
+    document.querySelector('#panel-tabs .panel-tab[data-tab="' + name + '"]')?.click();
+  }
 
-    if (btnToggle && editorPanel) {
-      btnToggle.addEventListener('click', () => {
-        this.isEditorVisible = !this.isEditorVisible;
-        editorPanel.classList.toggle('collapsed', !this.isEditorVisible);
-        btnToggle.textContent = this.isEditorVisible ? '[ CODE ]' : '[ < ]';
-      });
-    }
+  toggleEditor(forceState = !this.isEditorVisible) {
+    this._syncMonacoActiveScriptCode();
+    this.isEditorVisible = forceState;
+    const panel = document.getElementById('editor-panel');
+    const resizeHandle = document.getElementById('editor-resize-handle');
+    panel.classList.toggle('collapsed', !forceState);
+    panel.inert = !forceState;
+    resizeHandle?.classList.toggle('is-hidden', !forceState);
+    const toggle = document.getElementById('btn-toggle-editor');
+    toggle.textContent = forceState ? '[ CODE ]' : '[ < ]';
+    toggle.setAttribute('aria-expanded', String(forceState));
+    if (!forceState && panel.contains(document.activeElement)) toggle.focus({ preventScroll: true });
+    if (forceState) requestAnimationFrame(() => this.editor?.layout());
+  }
 
-    // Tab key to toggle (only when not in editor focus)
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Tab' && document.activeElement?.tagName !== 'TEXTAREA') {
-        // Don't toggle if Monaco is focused
-        const monacoContainer = document.getElementById('monaco-container');
-        if (monacoContainer && monacoContainer.contains(document.activeElement)) {
-          return; // Let Monaco handle Tab
-        }
+  /** Make the code sidebar wide enough for Monaco suggestions without hiding the game. */
+  _setupResizablePanel() {
+    const panel = document.getElementById('editor-panel');
+    const handle = document.getElementById('editor-resize-handle');
+    if (!panel || !handle) return;
 
-        e.preventDefault();
-        if (btnToggle) btnToggle.click();
+    const storageKey = 'ceoByCode_editorPanelSizes';
+    const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+    const defaultSize = () => isMobile()
+      ? Math.round(window.innerHeight * 0.4)
+      : Math.round(window.innerWidth * 0.25);
+    const bounds = () => {
+      const protectedGameSpace = isMobile() ? 180 : 320;
+      const minimum = isMobile() ? 220 : 320;
+      const maximum = Math.max(minimum, (isMobile() ? window.innerHeight : window.innerWidth) - protectedGameSpace);
+      return { minimum: Math.min(minimum, maximum), maximum };
+    };
+    const loadSizes = () => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey));
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch {
+        return {};
       }
+    };
+    const saveSize = size => {
+      try {
+        const sizes = loadSizes();
+        sizes[isMobile() ? 'mobile' : 'desktop'] = size;
+        localStorage.setItem(storageKey, JSON.stringify(sizes));
+      } catch {
+        // Resizing is still useful when storage is unavailable.
+      }
+    };
+
+    this._applyEditorPanelSize = (requestedSize, { persist = false } = {}) => {
+      const { minimum, maximum } = bounds();
+      const size = Math.round(Math.min(maximum, Math.max(minimum, Number(requestedSize) || defaultSize())));
+      const mobile = isMobile();
+
+      if (mobile) {
+        panel.style.width = '';
+        panel.style.height = `${size}px`;
+        handle.setAttribute('aria-orientation', 'horizontal');
+      } else {
+        panel.style.height = '';
+        panel.style.width = `${size}px`;
+        handle.setAttribute('aria-orientation', 'vertical');
+      }
+
+      handle.setAttribute('aria-valuemin', String(minimum));
+      handle.setAttribute('aria-valuemax', String(maximum));
+      handle.setAttribute('aria-valuenow', String(size));
+      if (persist) saveSize(size);
+      requestAnimationFrame(() => this.editor?.layout());
+      return size;
+    };
+
+    const restoreSize = () => {
+      const saved = loadSizes()[isMobile() ? 'mobile' : 'desktop'];
+      this._applyEditorPanelSize(saved ?? defaultSize());
+    };
+    const finishResize = event => {
+      if (this._resizePointerId === undefined || (event && event.pointerId !== this._resizePointerId)) return;
+      const size = Number(handle.getAttribute('aria-valuenow'));
+      this._resizePointerId = undefined;
+      handle.classList.remove('is-resizing');
+      document.body.classList.remove('is-resizing-editor');
+      saveSize(size);
+    };
+
+    this._onPanelResize = () => restoreSize();
+    this._onEditorResizeStart = event => {
+      if (event.button !== 0) return;
+      this._resizePointerId = event.pointerId;
+      handle.setPointerCapture?.(event.pointerId);
+      handle.classList.add('is-resizing');
+      document.body.classList.add('is-resizing-editor');
+      event.preventDefault();
+    };
+    this._onEditorResizeMove = event => {
+      if (event.pointerId !== this._resizePointerId) return;
+      const size = isMobile()
+        ? window.innerHeight - event.clientY - (handle.offsetHeight / 2)
+        : window.innerWidth - event.clientX - (handle.offsetWidth / 2);
+      this._applyEditorPanelSize(size);
+    };
+    this._onEditorResizeKeydown = event => {
+      const { minimum, maximum } = bounds();
+      const current = Number(handle.getAttribute('aria-valuenow')) || defaultSize();
+      const step = event.shiftKey ? 80 : 40;
+      let next = current;
+      if (event.key === 'Home') next = minimum;
+      else if (event.key === 'End') next = maximum;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next += step;
+      else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next -= step;
+      else return;
+      event.preventDefault();
+      this._applyEditorPanelSize(next, { persist: true });
+    };
+    this._onEditorResizeReset = () => this._applyEditorPanelSize(defaultSize(), { persist: true });
+
+    restoreSize();
+    handle.addEventListener('pointerdown', this._onEditorResizeStart);
+    handle.addEventListener('pointermove', this._onEditorResizeMove);
+    handle.addEventListener('pointerup', finishResize);
+    handle.addEventListener('pointercancel', finishResize);
+    handle.addEventListener('keydown', this._onEditorResizeKeydown);
+    handle.addEventListener('dblclick', this._onEditorResizeReset);
+    window.addEventListener('resize', this._onPanelResize);
+    this.scene.events.once('shutdown', () => {
+      handle.removeEventListener('pointerdown', this._onEditorResizeStart);
+      handle.removeEventListener('pointermove', this._onEditorResizeMove);
+      handle.removeEventListener('pointerup', finishResize);
+      handle.removeEventListener('pointercancel', finishResize);
+      handle.removeEventListener('keydown', this._onEditorResizeKeydown);
+      handle.removeEventListener('dblclick', this._onEditorResizeReset);
+      window.removeEventListener('resize', this._onPanelResize);
+    });
+  }
+
+  _setupToggle() {
+    const toggle = document.getElementById('btn-toggle-editor');
+    this._onToggle = () => this.toggleEditor();
+    toggle.addEventListener('click', this._onToggle);
+    const journal = document.getElementById('btn-journal');
+    this._onJournal = () => this.scene.panelManager.open('journal-panel', journal);
+    journal.addEventListener('click', this._onJournal);
+    this._onPanelShortcut = e => {
+      if (e.key !== 'Tab' || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || this.scene.isModalOpen) return;
+      const active = document.activeElement;
+      if (active?.matches('input, textarea, select') || active?.isContentEditable ||
+          document.getElementById('monaco-container')?.contains(active)) return;
+      e.preventDefault();
+      this.toggleEditor();
+    };
+    document.addEventListener('keydown', this._onPanelShortcut);
+    this.scene.events.once('shutdown', () => {
+      document.removeEventListener('keydown', this._onPanelShortcut);
+      toggle.removeEventListener('click', this._onToggle);
+      journal.removeEventListener('click', this._onJournal);
     });
   }
 
@@ -550,7 +664,7 @@ export class EditorBridge {
       if (btnStop) btnStop.disabled = false;
       if (statusEl) statusEl.textContent = 'Running...';
     } else {
-      btnRun.textContent = '▶ RUN';
+      btnRun.textContent = ' RUN';
       btnRun.classList.remove('running');
       if (btnStop) btnStop.disabled = true;
       if (statusEl) statusEl.textContent = activeDrone ? 'Idle' : 'No Device';
@@ -566,18 +680,34 @@ export class EditorBridge {
   /** Update editor content from external source */
   setEditorContent(code) {
     if (this.editor) {
-      this.editor.setValue(code);
+      clearTimeout(this._saveCodeTimeout);
+      this._loadingEditorContent = true;
+      try {
+        this.editor.setValue(code);
+      } finally {
+        this._loadingEditorContent = false;
+      }
     }
+  }
+
+  /** Persist the current buffer before loading another script. */
+  _selectScript(id) {
+    this._syncMonacoActiveScriptCode();
+    this.scriptManager.setActiveScript(id);
+    this.scriptManager.saveToLocalStorage();
+    this.setEditorContent(this._getActiveCode());
+    this._renderTabs();
   }
 
   /** Setup panel tabs navigation and event bindings */
   _setupPanelTabs() {
-    const tabs = document.querySelectorAll('.panel-tab');
-    const tabViews = document.querySelectorAll('.tab-view');
+    const tabs = document.querySelectorAll('#panel-tabs .panel-tab');
+    const tabViews = document.querySelectorAll('#editor-panel > .tab-view');
 
     tabs.forEach((tab) => {
       tab.addEventListener('click', () => {
         const targetTab = tab.getAttribute('data-tab');
+        this.toggleEditor(true);
 
         // Toggle active button
         tabs.forEach((t) => t.classList.toggle('active', t === tab));
@@ -590,7 +720,7 @@ export class EditorBridge {
 
         // Trigger Monaco layout update or tab refresh if visible
         if (targetTab === 'editor' && this.editor) {
-          this.editor.layout();
+          requestAnimationFrame(() => this.editor?.layout());
         } else if (targetTab === 'devices') {
           this._renderDevicesTab();
         } else if (targetTab === 'profile') {
@@ -651,7 +781,7 @@ export class EditorBridge {
       this._renderProfile();
     });
     profile.events.on('level-up', (data) => {
-      this.consoleManager.addLine(`🎉 LEVEL UP! You are now Level ${data.level}!`, 'info');
+      this.consoleManager.addLine(` LEVEL UP! You are now Level ${data.level}!`, 'info');
     });
     profile.events.on('upgrade', () => {
       this._renderProfile();
@@ -678,7 +808,7 @@ export class EditorBridge {
     }
     const walletEl = document.getElementById('profile-wallet');
     if (walletEl) {
-      walletEl.textContent = `🪙 ${coins}`;
+      walletEl.textContent = ` ${coins}`;
     }
 
     // Render XP
@@ -741,6 +871,7 @@ export class EditorBridge {
 
   /** Set up inventory backpack listeners and sell actions */
   _setupBackpackUI() {
+    document.getElementById('btn-workspace-backpack')?.addEventListener('click', () => this.toggleBackpack());
     const btnClose = document.getElementById('btn-close-backpack');
     if (btnClose) {
       btnClose.addEventListener('click', () => this.toggleBackpack(false));
@@ -767,10 +898,10 @@ export class EditorBridge {
     }
 
     if (this.isBackpackOpen) {
-      bpEl.classList.add('active');
+      this.scene.panelManager.open('backpack-popup');
       this._renderBackpack();
     } else {
-      bpEl.classList.remove('active');
+      if (this.scene.panelManager.current === 'backpack-popup') this.scene.panelManager.close();
       this._hideHoverTooltip();
     }
   }
@@ -790,14 +921,17 @@ export class EditorBridge {
       if (count <= 0) return;
       hasRenderedAny = true;
 
-      const meta = ITEM_METADATA[id] || { name: id, emoji: '❓', desc: 'Unknown item.', rarity: 'Common', sector: 'Umum' };
+      const meta = ITEM_METADATA[id] || { name: id, emoji: '', desc: 'Unknown item.', rarity: 'Common', sector: 'Umum' };
       
       const slotEl = document.createElement('div');
       slotEl.className = 'inventory-slot';
       slotEl.setAttribute('data-id', id);
+      slotEl.setAttribute('role', 'button'); slotEl.tabIndex = 0;
+      slotEl.setAttribute('aria-label', meta.name + ', ' + count);
+      slotEl.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();slotEl.click();} });
 
       slotEl.innerHTML = `
-        <div class="inventory-slot-emoji">${meta.emoji}</div>
+        ${pixelIcon(id, "inventory-slot-emoji")}
         <div class="inventory-slot-qty">${count}</div>
       `;
 
@@ -812,7 +946,32 @@ export class EditorBridge {
         this._hideHoverTooltip();
       });
 
-      // Selection click support
+      // Drag and selection support
+      slotEl.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        if (this.scene.dragManager) {
+          this.scene.dragManager.startDrag(e, {
+            type: 'item',
+            id,
+            count,
+            source: 'backpack',
+            element: slotEl,
+            onDragStart: () => {
+              slotEl.classList.add('dragging');
+              this._hideHoverTooltip();
+            },
+            onDragEnd: () => {
+              slotEl.classList.remove('dragging');
+            },
+            onClick: () => {
+              document.querySelectorAll('#backpack-popup-grid .inventory-slot').forEach(s => s.classList.remove('selected'));
+              slotEl.classList.add('selected');
+              this._showBackpackItemDetails(id, count, meta);
+            }
+          });
+        }
+      });
+
       slotEl.addEventListener('click', () => {
         document.querySelectorAll('#backpack-popup-grid .inventory-slot').forEach(s => s.classList.remove('selected'));
         slotEl.classList.add('selected');
@@ -823,7 +982,7 @@ export class EditorBridge {
     });
 
     if (!hasRenderedAny) {
-      backpackGrid.innerHTML = '<div style="grid-column: span 6; text-align: center; color: #556; font-size: 10px; padding: 20px;">Backpack is empty.</div>';
+      backpackGrid.innerHTML = '<div style="grid-column: span 6; text-align: center; color: #42535b; font-size: 10px; padding: 20px;">Backpack is empty.</div>';
     }
 
     // Auto-select first item if details card was open or clear it
@@ -833,7 +992,7 @@ export class EditorBridge {
         const firstSlot = backpackGrid.querySelector('.inventory-slot');
         if (firstSlot) firstSlot.click();
       } else {
-        detailsCard.innerHTML = '<div style="color: #666; font-style: italic; text-align: center; margin-top: 10px;">Pilih item untuk melihat deskripsi</div>';
+        detailsCard.innerHTML = '<div style="color: #4a7c59; font-style: italic; text-align: center; margin-top: 10px;">Pilih item untuk melihat deskripsi</div>';
       }
     }
   }
@@ -888,6 +1047,7 @@ export class EditorBridge {
   /** Render the Devices tab with all drone cards */
   /** Helper to sync active code from Monaco editor to the active script card */
   _syncMonacoActiveScriptCode() {
+    clearTimeout(this._saveCodeTimeout);
     if (this.editor) {
       const activeScript = this.scriptManager.getActiveScript();
       if (activeScript) {
@@ -927,11 +1087,11 @@ export class EditorBridge {
         const ident = inputIdent?.value.trim();
         const pass = inputPass?.value;
         if (!ident || !pass) {
-          this.consoleManager.addLine('⚠️ Username/Email and Password are required.', 'warn');
+          this.consoleManager.addLine(' Username/Email and Password are required.', 'warn');
           return;
         }
         try {
-          this.consoleManager.addLine('☁️ Logging in...', 'info');
+          this.consoleManager.addLine(' Logging in...', 'info');
           const data = await cloud.signIn(ident, pass);
           this.consoleManager.addLine(`✓ Logged in as ${data.user.email}`, 'info');
         } catch (err) {
@@ -945,18 +1105,18 @@ export class EditorBridge {
         const ident = inputIdent?.value.trim();
         const pass = inputPass?.value;
         if (!ident || !pass) {
-          this.consoleManager.addLine('⚠️ Username/Email and Password are required.', 'warn');
+          this.consoleManager.addLine(' Username/Email and Password are required.', 'warn');
           return;
         }
         if (pass.length < 6) {
-          this.consoleManager.addLine('⚠️ Password must be at least 6 characters.', 'warn');
+          this.consoleManager.addLine(' Password must be at least 6 characters.', 'warn');
           return;
         }
         try {
-          this.consoleManager.addLine('☁️ Registering account...', 'info');
+          this.consoleManager.addLine(' Registering account...', 'info');
           const data = await cloud.signUp(ident, pass);
           if (data.user?.identities?.length === 0) {
-            this.consoleManager.addLine(`⚠️ Account already exists or email needs verification.`, 'warn');
+            this.consoleManager.addLine(` Account already exists or email needs verification.`, 'warn');
           } else {
             this.consoleManager.addLine(`✓ Account created! Logged in as ${data.user?.email || ident}`, 'info');
           }
@@ -969,7 +1129,7 @@ export class EditorBridge {
     if (btnLoginGoogle) {
       btnLoginGoogle.addEventListener('click', async () => {
         try {
-          this.consoleManager.addLine('☁️ Redirecting to Google Auth...', 'info');
+          this.consoleManager.addLine(' Redirecting to Google Auth...', 'info');
           await cloud.signInWithGoogle();
         } catch (err) {
           this.consoleManager.addLine(`✗ Google Auth failed: ${err.message}`, 'error');
@@ -982,7 +1142,7 @@ export class EditorBridge {
         try {
           this._syncMonacoActiveScriptCode();
           const data = this.scene.saveSystem.compileSaveData();
-          this.consoleManager.addLine('☁️ Uploading save to cloud backup...', 'info');
+          this.consoleManager.addLine(' Uploading save to cloud backup...', 'info');
           // For backward compatibility with JSON structures, save entire state in profile_data, and scripts in scripts_data
           await cloud.backupSave(data, data.scripts);
           this.consoleManager.addLine('✓ Game state backed up to cloud!', 'info');
@@ -995,10 +1155,10 @@ export class EditorBridge {
     if (btnRestore) {
       btnRestore.addEventListener('click', async () => {
         try {
-          this.consoleManager.addLine('📥 Fetching cloud save...', 'info');
+          this.consoleManager.addLine(' Fetching cloud save...', 'info');
           const save = await cloud.restoreSave();
           if (!save) {
-            this.consoleManager.addLine('⚠️ No cloud save found for this account.', 'warn');
+            this.consoleManager.addLine(' No cloud save found for this account.', 'warn');
             return;
           }
           let saveData = null;
@@ -1019,13 +1179,13 @@ export class EditorBridge {
           }
           const success = this.scene.saveSystem.applySaveData(saveData);
           if (success) {
-            this._syncMonacoActiveScriptCode();
+            clearTimeout(this._saveCodeTimeout);
             this._renderTabs();
             this._renderDevicesTab();
             this._renderProfile();
             this._renderBackpack();
             if (this.editor) {
-              this.editor.setValue(this._getActiveCode());
+              this.setEditorContent(this._getActiveCode());
             }
             this.consoleManager.addLine('✓ Cloud save restored successfully!', 'info');
           } else {
@@ -1040,7 +1200,7 @@ export class EditorBridge {
     if (btnLogout) {
       btnLogout.addEventListener('click', async () => {
         try {
-          this.consoleManager.addLine('☁️ Logging out...', 'info');
+          this.consoleManager.addLine(' Logging out...', 'info');
           await cloud.signOut();
           this.consoleManager.addLine('✓ Logged out.', 'info');
         } catch (err) {
@@ -1053,11 +1213,11 @@ export class EditorBridge {
     const btnResetSave = document.getElementById('btn-reset-save');
     if (btnResetSave) {
       btnResetSave.addEventListener('click', () => {
-        if (!confirm('⚠️ This will delete your local save and start fresh.\nAre you sure?')) return;
+        if (!confirm(' This will delete your local save and start fresh.\nAre you sure?')) return;
         this.scene.saveSystem?.clearLocalSave();
         // Also clear script cards
         localStorage.removeItem('ceoByCode_scripts');
-        this.consoleManager.addLine('🗑️ Local save cleared. Reloading...', 'warn');
+        this.consoleManager.addLine(' Local save cleared. Reloading...', 'warn');
         setTimeout(() => window.location.reload(), 800);
       });
     }
@@ -1097,7 +1257,7 @@ export class EditorBridge {
 
     const dm = this.deviceManager;
     if (!dm) {
-      container.innerHTML = '<div style="color:#556;font-size:11px;padding:12px;">No Device Manager available.</div>';
+      container.innerHTML = '<div style="color:#42535b;font-size:11px;padding:12px;">No Device Manager available.</div>';
       return;
     }
 
@@ -1108,42 +1268,42 @@ export class EditorBridge {
     container.innerHTML = `
       <div class="devices-layout" style="display: flex; flex-direction: column; gap: 16px;">
         <!-- Section 1: Script Cards Deck -->
-        <div class="script-cards-library" style="background: rgba(18, 18, 36, 0.4); border: 1px solid rgba(255, 0, 85, 0.15); border-radius: 12px; padding: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
+        <div class="script-cards-library" style="background: rgba(18, 18, 36, 0.4); border: 1px solid rgba(99,216,209, 0.15); border-radius: 12px; padding: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <span style="font-family: 'Press Start 2P', monospace; font-size: 8px; color: #ff0055;">SCRIPT CARDS</span>
-            <span style="font-size: 10px; color: #888;" id="script-cards-count">${scripts.length} / ${this.scriptManager.maxSlots} Used</span>
+            <span style="font-family: 'Press Start 2P', monospace; font-size: 8px; color: #9b794e;">SCRIPT CARDS</span>
+            <span style="font-size: 10px; color: #93a7a1;" id="script-cards-count">${scripts.length} / ${this.scriptManager.maxSlots} Used</span>
           </div>
           
           <!-- Script Cards Grid -->
           <div id="script-cards-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
             ${scripts.map(script => `
-              <div class="script-card-item" draggable="true" data-script-id="${script.id}" style="background: rgba(10, 10, 20, 0.65); border: 1px solid rgba(255,255,255,0.06); border-left: 4px solid ${script.color}; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; cursor: grab; position: relative; transition: all 0.3s ease;">
+              <div class="script-card-item" data-script-id="${script.id}" style="background: rgba(10, 10, 20, 0.65); border: 1px solid rgba(255,255,255,0.06); border-left: 4px solid ${script.color}; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; cursor: grab; position: relative; transition: all 0.3s ease;">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
-                  <input type="text" value="${script.name}" class="script-card-rename-input" data-script-id="${script.id}" style="background: transparent; border: none; border-bottom: 1px dashed rgba(255,255,255,0.1); color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; width: 70%; outline: none; padding: 2px 0;" />
-                  <span style="font-size: 8px; padding: 2px 4px; border-radius: 3px; background: ${script.assignedDroneId ? 'rgba(0, 255, 204, 0.1)' : 'rgba(255, 255, 255, 0.05)'}; color: ${script.assignedDroneId ? '#00ffcc' : '#888'}; font-weight: bold;">
+                  <input type="text" value="${script.name}" class="script-card-rename-input" data-script-id="${script.id}" style="background: transparent; border: none; border-bottom: 1px dashed rgba(255,255,255,0.1); color: #edf0d4; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; width: 70%; outline: none; padding: 2px 0;" />
+                  <span style="font-size: 8px; padding: 2px 4px; border-radius: 3px; background: ${script.assignedDroneId ? 'rgba(99,216,209, 0.1)' : 'rgba(255, 255, 255, 0.05)'}; color: ${script.assignedDroneId ? '#63d8d1' : '#93a7a1'}; font-weight: bold;">
                     ${script.assignedDroneId ? 'Bound' : 'Free'}
                   </span>
                 </div>
-                <div style="font-size: 9px; color: #666; height: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  ${script.assignedDroneId ? `Linked: <b style="color:#00ffcc;">${script.assignedDroneId}</b>` : 'Drag to drone drop zone'}
+                <div style="font-size: 9px; color: #4a7c59; height: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${script.assignedDroneId ? `Linked: <b style="color:#63d8d1;">${script.assignedDroneId}</b>` : 'Drag to drone drop zone'}
                 </div>
                 <div style="display: flex; gap: 6px; margin-top: 4px;">
-                  <button class="btn-card-edit" data-script-id="${script.id}" style="flex: 1; font-size: 9px; padding: 4px 6px; background: rgba(0, 255, 204, 0.08); border: 1px solid rgba(0, 255, 204, 0.15); color: #00ffcc; border-radius: 4px; cursor: pointer; font-family: inherit;">✏️ Edit</button>
-                  <button class="btn-card-delete" data-script-id="${script.id}" style="font-size: 9px; padding: 4px 6px; background: rgba(255, 68, 68, 0.08); border: 1px solid rgba(255, 68, 68, 0.15); color: #ff4444; border-radius: 4px; cursor: pointer; font-family: inherit;">Delete</button>
+                  <button class="btn-card-edit" data-script-id="${script.id}" style="flex: 1; font-size: 9px; padding: 4px 6px; background: rgba(99,216,209, 0.08); border: 1px solid rgba(99,216,209, 0.15); color: #63d8d1; border-radius: 4px; cursor: pointer; font-family: inherit;"> Edit</button>
+                  <button class="btn-card-delete" data-script-id="${script.id}" style="font-size: 9px; padding: 4px 6px; background: rgba(255, 68, 68, 0.08); border: 1px solid rgba(255, 68, 68, 0.15); color: #9b794e; border-radius: 4px; cursor: pointer; font-family: inherit;">Delete</button>
                 </div>
               </div>
             `).join('')}
-            ${scripts.length === 0 ? `<div style="grid-column: span 2; text-align: center; color: #556; font-size: 10px; padding: 12px;">No script cards. Click below to create.</div>` : ''}
+            ${scripts.length === 0 ? `<div style="grid-column: span 2; text-align: center; color: #42535b; font-size: 10px; padding: 12px;">No script cards. Click below to create.</div>` : ''}
           </div>
           
           <!-- Create script card button -->
-          <button id="btn-create-script-card" style="width: 100%; border: 1px dashed rgba(255, 0, 85, 0.3); background: rgba(255,0,85,0.02); color: #ff0055; border-radius: 6px; padding: 8px; margin-top: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; transition: all 0.3s ease;">
+          <button id="btn-create-script-card" style="width: 100%; border: 1px dashed rgba(99,216,209, 0.3); background: rgba(99,216,209,0.02); color: #9b794e; border-radius: 6px; padding: 8px; margin-top: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; transition: all 0.3s ease;">
             + Create New Script Card
           </button>
         </div>
         
         <!-- Section 2: Drones Hardware Grid -->
-        <div style="font-family: 'Press Start 2P', monospace; font-size: 8px; color: #ff0055; margin-top: 8px; border-left: 3px solid #ff0055; padding-left: 8px;">DRONE HARDWARE</div>
+        <div style="font-family: 'Press Start 2P', monospace; font-size: 8px; color: #9b794e; margin-top: 8px; border-left: 3px solid #9b794e; padding-left: 8px;">DRONE HARDWARE</div>
         <div id="drones-hardware-grid" style="display: flex; flex-direction: column; gap: 12px;">
           <!-- Active Drones lists -->
         </div>
@@ -1153,16 +1313,16 @@ export class EditorBridge {
     const dronesContainer = container.querySelector('#drones-hardware-grid');
     if (!dronesContainer) return;
 
-    const MODULE_EMOJIS = { farming: '🌾', supplier: '📦', seller: '💰' };
-    const STATUS_COLORS_CSS = { idle: '#00ffcc', running: '#ffd700', error: '#ff4444', paused: '#ff8800' };
+    const MODULE_EMOJIS = { farming: '', supplier: '', seller: '' };
+    const STATUS_COLORS_CSS = { idle: '#63d8d1', running: '#e9bf62', error: '#9b794e', paused: '#e9bf62' };
 
     summaries.forEach((device) => {
       const droneCard = document.createElement('div');
       droneCard.className = 'device-card' + (device.isActive ? ' device-card-active' : '');
       droneCard.style.position = 'relative';
 
-      const statusColor = STATUS_COLORS_CSS[device.status] || '#00ffcc';
-      const moduleEmoji = device.module ? MODULE_EMOJIS[device.module] || '⚙️' : '❌';
+      const statusColor = STATUS_COLORS_CSS[device.status] || '#63d8d1';
+      const moduleEmoji = device.module ? MODULE_EMOJIS[device.module] || '' : '';
       const moduleName = device.module ? device.module.charAt(0).toUpperCase() + device.module.slice(1) : 'None';
 
       // Find if this drone has an assigned script
@@ -1179,24 +1339,27 @@ export class EditorBridge {
         </div>
         
         <div class="device-info-row">
-          <span class="device-module">Module: ${moduleEmoji} ${moduleName}</span>
+          <span class="device-module">${pixelIcon(device.module ? "module_" + device.module : "crate")} ${moduleName}</span>
           <span class="device-inv">Inv: ${device.inventoryCount}/${device.inventoryCapacity}</span>
+        </div>
+        <div style="width: 100%; height: 4px; background: #101a21; border: 1px solid #1b1b1b; border-radius: 2px; overflow: hidden; margin-top: 2px; margin-bottom: 6px;">
+          <div style="width: ${Math.min(100, Math.round((device.inventoryCount / Math.max(1, device.inventoryCapacity)) * 100))}%; height: 100%; background: ${fillColorCSS(device.inventoryCount / Math.max(1, device.inventoryCapacity))}; transition: width 0.2s ease;"></div>
         </div>
         
         <div class="device-inv-preview" id="device-inv-${device.id}"></div>
         
         <!-- SCRIPT DROP ZONE -->
-        <div class="drone-card-drop-zone" data-drone-id="${device.id}" style="border: 2px dashed ${assignedScript ? assignedScript.color : '#333344'}; border-radius: 8px; padding: 12px; text-align: center; font-size: 10px; color: ${assignedScript ? '#fff' : '#666'}; background: ${assignedScript ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)'}; transition: all 0.2s ease; position: relative;">
+        <div class="drone-card-drop-zone" data-drone-id="${device.id}" style="border: 2px dashed ${assignedScript ? assignedScript.color : '#22343c'}; border-radius: 8px; padding: 12px; text-align: center; font-size: 10px; color: ${assignedScript ? '#edf0d4' : '#4a7c59'}; background: ${assignedScript ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)'}; transition: all 0.2s ease; position: relative;">
           ${assignedScript ? `
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="width: 8px; height: 8px; border-radius: 50%; background: ${assignedScript.color}; box-shadow: 0 0 4px ${assignedScript.color}"></span>
-                <b style="color: #fff; font-size: 11px;">${assignedScript.name}</b>
+                <b style="color: #edf0d4; font-size: 11px;">${assignedScript.name}</b>
               </div>
-              <button class="btn-card-unassign" data-drone-id="${device.id}" style="background: transparent; border: none; color: #ff4444; cursor: pointer; font-size: 9px; font-weight: bold; font-family: inherit; padding: 2px 6px;">❌ Eject</button>
+              <button class="btn-card-unassign" data-drone-id="${device.id}" style="background: transparent; border: none; color: #9b794e; cursor: pointer; font-size: 9px; font-weight: bold; font-family: inherit; padding: 2px 6px;"> Eject</button>
             </div>
           ` : `
-            <div style="color: #555666; font-family: inherit; font-size: 9px; line-height: 1.4;">
+            <div style="color: #42535b; font-family: inherit; font-size: 9px; line-height: 1.4;">
               Drag script card here to bind
             </div>
           `}
@@ -1204,11 +1367,11 @@ export class EditorBridge {
         
         <div class="device-actions" style="margin-top: 4px;">
           <!-- RUN / STOP button per drone -->
-          <button class="btn-device-run" data-drone-id="${device.id}" style="flex: 2; background: ${device.status === 'running' ? '#ff4444' : '#00ff88'}; color: #0a0a1a; border: none; border-radius: 6px; padding: 8px 10px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 10px; transition: all 0.2s ease;">
-            ${device.status === 'running' ? '■ STOP' : '▶ RUN'}
+          <button class="btn-device-run" data-drone-id="${device.id}" style="flex: 2; background: ${device.status === 'running' ? '#9b794e' : '#63d8d1'}; color: #101a21; border: none; border-radius: 6px; padding: 8px 10px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 10px; transition: all 0.2s ease;">
+            ${device.status === 'running' ? '■ STOP' : ' RUN'}
           </button>
-          <button class="btn-device-equip" data-drone-id="${device.id}">⚙️ Module</button>
-          <button class="btn-device-transfer" data-drone-id="${device.id}">📥 Transfer</button>
+          <button class="btn-device-equip" data-drone-id="${device.id}"> Module</button>
+          <button class="btn-device-transfer" data-drone-id="${device.id}"> Transfer</button>
         </div>
       `;
 
@@ -1220,14 +1383,14 @@ export class EditorBridge {
       if (drone && invPreview) {
         const items = drone.droneInventory.getAll();
         if (items.length === 0) {
-          invPreview.innerHTML = '<span style="color:#445;font-size:10px;">Empty</span>';
+          invPreview.innerHTML = '<span style="color:#42535b;font-size:10px;">Empty</span>';
         } else {
           invPreview.className = 'drone-inventory-grid';
           invPreview.innerHTML = items.map(({ id, count }) => {
-            const meta = ITEM_METADATA[id] || { name: id, emoji: '📦' };
+            const meta = ITEM_METADATA[id] || { name: id, emoji: '' };
             return `
               <div class="drone-inventory-slot" title="${meta.name}: ${count}">
-                <div class="drone-inventory-slot-emoji">${meta.emoji}</div>
+                ${pixelIcon(id, "drone-inventory-slot-emoji")}
                 <div class="drone-inventory-slot-qty">${count}</div>
               </div>
             `;
@@ -1271,25 +1434,32 @@ export class EditorBridge {
           }
           targetDrone.droneInventory.clear();
           targetDrone.events.emit('inventory-changed', { droneId: targetDrone.id });
-          this.consoleManager.addLine(`📥 Transferred items from ${device.id} to backpack.`, 'info');
+          this.consoleManager.addLine(` Transferred items from ${device.id} to backpack.`, 'info');
         });
       }
     });
 
     if (summaries.length === 0) {
-      dronesContainer.innerHTML = '<div style="color:#556;font-size:11px;padding:12px;text-align:center;">No drones registered yet. Buy drones in Shop!</div>';
+      dronesContainer.innerHTML = '<div style="color:#42535b;font-size:11px;padding:12px;text-align:center;">No drones registered yet. Buy drones in Shop!</div>';
     }
 
     // ── Setup Card Drag and Drop Event Listeners ──
     container.querySelectorAll('.script-card-item').forEach(card => {
-      card.addEventListener('dragstart', (e) => {
+      card.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('button') || e.target.closest('input')) return;
         const scriptId = card.getAttribute('data-script-id');
-        e.dataTransfer.setData('text/plain', scriptId);
-        e.dataTransfer.effectAllowed = 'move';
-        card.classList.add('dragging');
-      });
-      card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
+        const scriptName = card.querySelector('.script-card-rename-input')?.value || scriptId;
+        if (this.scene.dragManager) {
+          this.scene.dragManager.startDrag(e, {
+            type: 'script_card',
+            scriptId,
+            name: scriptName,
+            element: card,
+            onDragStart: () => card.classList.add('dragging'),
+            onDragEnd: () => card.classList.remove('dragging'),
+          });
+        }
       });
     });
 
@@ -1307,15 +1477,13 @@ export class EditorBridge {
         const scriptId = e.dataTransfer.getData('text/plain');
         const droneId = zone.getAttribute('data-drone-id');
         if (scriptId && droneId) {
+          this._syncMonacoActiveScriptCode();
           this.scriptManager.assignScriptToDrone(scriptId, droneId);
-          this.consoleManager.addLine(`🔗 Script card linked to ${droneId}`, 'info');
+          this.consoleManager.addLine(` Script card linked to ${droneId}`, 'info');
           this._renderDevicesTab();
           
           if (this.deviceManager?.activeDeviceId === droneId) {
-            const script = this.scriptManager.getScript(scriptId);
-            if (script && this.editor) {
-              this.editor.setValue(script.code);
-            }
+            this._selectScript(scriptId);
           }
         }
       });
@@ -1328,7 +1496,7 @@ export class EditorBridge {
         const droneId = btn.getAttribute('data-drone-id');
         if (droneId) {
           this.scriptManager.assignScriptToDrone(null, droneId);
-          this.consoleManager.addLine(`❌ Unassigned script card from ${droneId}`, 'info');
+          this.consoleManager.addLine(` Unassigned script card from ${droneId}`, 'info');
           this._renderDevicesTab();
         }
       });
@@ -1340,17 +1508,13 @@ export class EditorBridge {
         e.stopPropagation();
         const scriptId = btn.getAttribute('data-script-id');
         if (scriptId) {
-          this.scriptManager.setActiveScript(scriptId);
+          this._selectScript(scriptId);
           const script = this.scriptManager.getScript(scriptId);
           if (script && script.assignedDroneId) {
             this.deviceManager.setActiveDevice(script.assignedDroneId);
           }
-          if (this.editor && script) {
-            this.editor.setValue(script.code);
-          }
-          this._renderTabs();
-          document.querySelector('.panel-tab[data-tab="editor"]')?.click();
-          this.consoleManager.addLine(`📡 Editing script: ${script?.name || scriptId}`, 'info');
+          this.openTab('editor');
+          this.consoleManager.addLine(` Editing script: ${script?.name || scriptId}`, 'info');
         }
       });
     });
@@ -1363,12 +1527,13 @@ export class EditorBridge {
         if (scriptId) {
           const script = this.scriptManager.getScript(scriptId);
           if (confirm(`Delete script "${script?.name || 'Untitled'}"?`)) {
+            this._syncMonacoActiveScriptCode();
             this.scriptManager.deleteScript(scriptId);
-            this.consoleManager.addLine(`🗑️ Script card "${script?.name}" deleted.`, 'info');
+            this.consoleManager.addLine(` Script card "${script?.name}" deleted.`, 'info');
             this._renderDevicesTab();
             this._renderTabs();
             if (this.editor) {
-              this.editor.setValue(this._getActiveCode());
+              this.setEditorContent(this._getActiveCode());
             }
           }
         }
@@ -1410,7 +1575,7 @@ export class EditorBridge {
           e.stopPropagation();
           const script = this.scriptManager.createScript('Untitled Card');
           if (script) {
-            this.consoleManager.addLine(`🆕 Created new script card "${script.name}"`, 'info');
+            this.consoleManager.addLine(` Created new script card "${script.name}"`, 'info');
             this._renderDevicesTab();
             this._renderTabs();
           }
@@ -1428,7 +1593,7 @@ export class EditorBridge {
 
         const assignedScript = scripts.find(s => s.assignedDroneId === droneId);
         if (!assignedScript) {
-          this.consoleManager.addLine(`⚠️ Cannot run: No script card is assigned to ${drone.label || droneId}.`, 'warn');
+          this.consoleManager.addLine(` Cannot run: No script card is assigned to ${drone.label || droneId}.`, 'warn');
           return;
         }
 
@@ -1444,22 +1609,22 @@ export class EditorBridge {
         const latestScript = this.scriptManager.getScript(assignedScript.id);
         const code = latestScript ? latestScript.code : '';
         if (!code.trim()) {
-          this.consoleManager.addLine(`⚠️ No code in script "${assignedScript.name}".`, 'warn');
+          this.consoleManager.addLine(` No code in script "${assignedScript.name}".`, 'warn');
           return;
         }
 
-        this.consoleManager.addLine(`▶ Executing "${assignedScript.name}" on ${drone.label}...`, 'info');
+        this.consoleManager.addLine(` Executing "${assignedScript.name}" on ${drone.label}...`, 'info');
 
         // Run Benchmark to calculate simulated offline rates
         const benchmarkResult = sandbox.benchmark(code);
         if (benchmarkResult.success) {
           drone.productionRates = benchmarkResult.rates;
           drone.benchmarkError = null;
-          this.consoleManager.addLine(`⚡ Script Benchmark: Success! Production rates calculated.`, 'info');
+          this.consoleManager.addLine(` Script Benchmark: Success! Production rates calculated.`, 'info');
         } else {
           drone.productionRates = null;
           drone.benchmarkError = benchmarkResult.error;
-          this.consoleManager.addLine(`⚠️ Script Benchmark: Has crash or error: ${benchmarkResult.error}`, 'warn');
+          this.consoleManager.addLine(` Script Benchmark: Has crash or error: ${benchmarkResult.error}`, 'warn');
         }
 
         drone.setStatus('running');
@@ -1478,9 +1643,9 @@ export class EditorBridge {
 
     const inv = this.scene.inventorySystem;
     const moduleItems = [
-      { key: 'farming', itemId: 'module_farming', name: '🌾 Farming Module' },
-      { key: 'supplier', itemId: 'module_supplier', name: '📦 Supplier Module' },
-      { key: 'seller', itemId: 'module_seller', name: '💰 Seller/Buyer Module' },
+      { key: 'farming', itemId: 'module_farming', name: ' Farming Module' },
+      { key: 'supplier', itemId: 'module_supplier', name: ' Supplier Module' },
+      { key: 'seller', itemId: 'module_seller', name: ' Seller/Buyer Module' },
     ];
 
     // Find what player has in inventory
@@ -1494,8 +1659,8 @@ export class EditorBridge {
     // Build a simple selector notification
     let menuHtml = `<div style="padding:12px;">`;
     if (drone.module) {
-      menuHtml += `<div style="margin-bottom:8px;color:#aaa;font-size:11px;">Current: <b style="color:#00ffcc">${drone.module}</b></div>`;
-      menuHtml += `<button class="btn-unequip-module" style="width:100%;margin-bottom:8px;">❌ Unequip Module (return to inventory)</button>`;
+      menuHtml += `<div style="margin-bottom:8px;color:#93a7a1;font-size:11px;">Current: <b style="color:#63d8d1">${drone.module}</b></div>`;
+      menuHtml += `<button class="btn-unequip-module" style="width:100%;margin-bottom:8px;"> Unequip Module (return to inventory)</button>`;
     }
     available.forEach(m => {
       menuHtml += `<button class="btn-equip-module-item" data-module="${m.key}" data-item="${m.itemId}" style="width:100%;margin-bottom:6px;">${m.name}</button>`;
@@ -1505,14 +1670,14 @@ export class EditorBridge {
     // Inject into devices list temporarily as a modal-like overlay inside the card
     const overlay = document.createElement('div');
     overlay.id = 'module-equip-overlay';
-    overlay.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(8,8,20,0.95);z-index:999;border-radius:12px;display:flex;flex-direction:column;justify-content:center;';
+    overlay.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(16,26,33,0.95);z-index:999;border-radius:12px;display:flex;flex-direction:column;justify-content:center;';
     overlay.innerHTML = `
       <div style="padding:16px;">
-        <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:#ff0055;margin-bottom:12px;">EQUIP MODULE</div>
-        <div style="font-size:11px;color:#aaa;margin-bottom:12px;">Drone: <b style="color:#fff">${droneId}</b></div>
-        ${drone.module ? `<div style="margin-bottom:8px;font-size:11px;color:#aaa;">Current: <b style="color:#00ffcc">${drone.module}</b></div><button id="btn-unequip" style="width:100%;background:transparent;border:1px solid #ff4444;color:#ff4444;border-radius:6px;padding:6px;cursor:pointer;font-family:monospace;font-size:11px;margin-bottom:8px;">❌ Unequip</button>` : ''}
-        ${available.map(m => `<button class="btn-equip-mod" data-module="${m.key}" data-item="${m.itemId}" style="width:100%;background:rgba(0,255,204,0.1);border:1px solid rgba(0,255,204,0.3);color:#00ffcc;border-radius:6px;padding:8px;cursor:pointer;font-family:monospace;font-size:11px;margin-bottom:6px;">${m.name}</button>`).join('')}
-        <button id="btn-close-equip" style="width:100%;background:transparent;border:1px dashed #333;color:#666;border-radius:6px;padding:6px;cursor:pointer;font-family:monospace;font-size:11px;margin-top:4px;">Cancel</button>
+        <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:#9b794e;margin-bottom:12px;">EQUIP MODULE</div>
+        <div style="font-size:11px;color:#93a7a1;margin-bottom:12px;">Drone: <b style="color:#edf0d4">${droneId}</b></div>
+        ${drone.module ? `<div style="margin-bottom:8px;font-size:11px;color:#93a7a1;">Current: <b style="color:#63d8d1">${drone.module}</b></div><button id="btn-unequip" style="width:100%;background:transparent;border:1px solid #9b794e;color:#9b794e;border-radius:6px;padding:6px;cursor:pointer;font-family:monospace;font-size:11px;margin-bottom:8px;"> Unequip</button>` : ''}
+        ${available.map(m => `<button class="btn-equip-mod" data-module="${m.key}" data-item="${m.itemId}" style="width:100%;background:rgba(99,216,209,0.1);border:1px solid rgba(99,216,209,0.3);color:#63d8d1;border-radius:6px;padding:8px;cursor:pointer;font-family:monospace;font-size:11px;margin-bottom:6px;">${m.name}</button>`).join('')}
+        <button id="btn-close-equip" style="width:100%;background:transparent;border:1px dashed #22343c;color:#4a7c59;border-radius:6px;padding:6px;cursor:pointer;font-family:monospace;font-size:11px;margin-top:4px;">Cancel</button>
       </div>
     `;
 
@@ -1564,52 +1729,49 @@ export class EditorBridge {
     const detailsCard = document.getElementById('backpack-popup-details');
     if (!detailsCard) return;
 
-    // Look up plant prices or refined prices for sell amounts
-    let sellPrice = null;
-    const plantDef = this.scene.economySystem.shopItems?.find(i => i.id === itemId);
-    if (plantDef) sellPrice = plantDef.sellPrice;
-    
-    // Fallback dictionary for items
-    const priceMap = {
-      wheat: 15, potato: 22, cactus: 25, apple_tree: 30,
-      coal: 12, copper_ore: 18, iron_ore: 25, gold_ore: 50,
-      copper_ingot: 40, iron_ingot: 60, gold_ingot: 120,
-      flour: 30, bread: 80, apple_juice: 50, apple_jam: 100,
-      potato_starch: 45, chips: 110, wire: 60, gear: 90, chip: 250
-    };
-    if (priceMap[itemId]) sellPrice = priceMap[itemId];
+    // Show exactly the price that the economy will actually pay.
+    const sellPrice = this.scene.economySystem.getSellPrice(itemId);
 
     let actionBtnHtml = '';
     if (sellPrice) {
       actionBtnHtml = `
         <div style="display: flex; gap: 8px; margin-top: 8px;">
           <button class="btn-profile-save btn-sell" data-item="${itemId}" id="btn-details-sell-one" style="flex: 1; font-size: 10px;">Sell 1 (+${sellPrice}g)</button>
-          <button class="btn-profile-save btn-sell" data-item="${itemId}" id="btn-details-sell-all" style="flex: 1; font-size: 10px; background: transparent; border: 1px dashed #ff0055; color: #ff0055;">Sell All</button>
+          <button class="btn-profile-save btn-sell" data-item="${itemId}" id="btn-details-sell-all" style="flex: 1; font-size: 10px; background: transparent; border: 1px dashed #9b794e; color: #9b794e;">Sell All</button>
         </div>
       `;
     } else {
       let typeLabel = 'Seed';
       if (itemId.startsWith('module_')) typeLabel = 'Drone Module';
       else if (itemId.startsWith('key_')) typeLabel = 'Zone Key';
-      else if (itemId === 'plow' || itemId === 'watering_can') typeLabel = 'Tool';
-      actionBtnHtml = `<div style="margin-top: 8px;"><span style="font-size: 8px; color: #00ffcc; border: 1px dashed rgba(0, 255, 204, 0.4); padding: 4px 8px; border-radius: 4px; display: inline-block; font-weight: bold; font-family: 'Press Start 2P', monospace;">${typeLabel.toUpperCase()}</span></div>`;
+      else if (itemId === 'plow' || itemId === 'watering_can' || itemId === 'pickaxe') typeLabel = 'Tool';
+      actionBtnHtml = `<div style="margin-top: 8px;"><span style="font-size: 8px; color: #63d8d1; border: 1px dashed rgba(99,216,209, 0.4); padding: 4px 8px; border-radius: 4px; display: inline-block; font-weight: bold; font-family: 'Press Start 2P', monospace;">${typeLabel.toUpperCase()}</span></div>`;
     }
 
+    if (itemId.endsWith('_seed') || itemId === 'plow' || itemId === 'watering_can' || itemId === 'pickaxe') {
+      actionBtnHtml += '<button id="btn-details-hotbar" style="margin-top:12px;width:100%">Pasang di slot aktif</button>';
+    }
     detailsCard.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px; margin-top: 12px;">
-        <span style="font-size: 32px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">${meta.emoji}</span>
+        ${pixelIcon(itemId)}
         <div style="display: flex; flex-direction: column;">
-          <strong style="color: #fff; font-size: 13px;">${meta.name}</strong>
-          <span style="color: #00ffcc; font-size: 10px; font-weight: bold;">Owned: ${qty}</span>
+          <strong style="color: #edf0d4; font-size: 13px;">${meta.name}</strong>
+          <span style="color: #63d8d1; font-size: 10px; font-weight: bold;">Owned: ${qty}</span>
         </div>
       </div>
-      <p style="color: #94a3b8; font-size: 11px; margin-top: 4px; line-height: 1.4;">${meta.desc || 'No description available.'}</p>
+      <p style="color: #93a7a1; font-size: 11px; margin-top: 4px; line-height: 1.4;">${meta.desc || 'No description available.'}</p>
       <div style="width: 100%;">
         ${actionBtnHtml}
       </div>
     `;
 
     // Wire up buttons
+    document.getElementById('btn-details-hotbar')?.addEventListener('click', () => {
+      this.scene.hotbar.moveItemToHotbar(itemId, this.scene.hotbar.activeSlot);
+      this.scene.hud.showMessage('Item dipasang pada slot aktif.');
+      this.scene.saveSystem.saveLocal();
+      this._renderBackpack();
+    });
     const btnSellOne = document.getElementById('btn-details-sell-one');
     if (btnSellOne) {
       btnSellOne.onclick = () => {
@@ -1652,7 +1814,7 @@ export class EditorBridge {
       const bubble = document.createElement('div');
       bubble.className = `chat-bubble ${sender}`;
       if (sender === 'eli') {
-        bubble.innerHTML = `<span style="font-size: 8px; color: #ff0055; font-weight: bold; margin-bottom: 2px;">Eli (Assistant Manager)</span><div>${text}</div>`;
+        bubble.innerHTML = `<span style="font-size: 8px; color: #9b794e; font-weight: bold; margin-bottom: 2px;">Eli (Assistant Manager)</span><div>${text}</div>`;
       } else {
         bubble.innerHTML = `<div>${text}</div>`;
       }
@@ -1664,7 +1826,7 @@ export class EditorBridge {
       const hasOres = Object.keys(earnings).some(id => id.includes('ore') || id.includes('ingot') || id === 'coal');
       
       if (hasOres) {
-        setTimeout(() => addMessage('eli', '✨ Laporan hilirisasi industri kita semalam sukses besar! Logika mining yang kamu buat lancar jaya tanpa izin tambang ilegal.'), 500);
+        setTimeout(() => addMessage('eli', ' Laporan hilirisasi industri kita semalam sukses besar! Logika mining yang kamu buat lancar jaya tanpa izin tambang ilegal.'), 500);
 
         setTimeout(() => {
           actionsContainer.innerHTML = `
@@ -1705,7 +1867,7 @@ export class EditorBridge {
           };
         }, 1500);
       } else {
-        setTimeout(() => addMessage('eli', '📸 Kodinganmu semalam rapi banget. Tumben. Nggak ada infinite loop, logikanya efisian, bahkan dronenya nggak ada yang nabrak pagar.'), 500);
+        setTimeout(() => addMessage('eli', ' Kodinganmu semalam rapi banget. Tumben. Nggak ada infinite loop, logikanya efisian, bahkan dronenya nggak ada yang nabrak pagar.'), 500);
 
         setTimeout(() => {
           actionsContainer.innerHTML = `
@@ -1751,7 +1913,7 @@ export class EditorBridge {
       const isMiningCrash = crashedDroneName.toLowerCase().includes('mining') || crashedDroneName.toLowerCase().includes('miner');
       
       if (isMiningCrash) {
-        setTimeout(() => addMessage('eli', `⚠️ Bencana investasi, Abang... Kodinganmu tadi malam kena Stagnasi. Dronemu ${crashedDroneName} mogok karena salah naruh tanda kurung.`), 500);
+        setTimeout(() => addMessage('eli', ` Bencana investasi, Abang... Kodinganmu tadi malam kena Stagnasi. Dronemu ${crashedDroneName} mogok karena salah naruh tanda kurung.`), 500);
 
         setTimeout(() => {
           actionsContainer.innerHTML = `
@@ -1792,7 +1954,7 @@ export class EditorBridge {
           };
         }, 1500);
       } else {
-        setTimeout(() => addMessage('eli', `🤖 Bang, baru ditinggal tidur bentar, itu skrip logistikmu di ${crashedDroneName} udah Crash. Kamu ngetik drone.crop() malah jadi drone.krop(). Kreatif banget nyiptain sintaks baru.`), 500);
+        setTimeout(() => addMessage('eli', ` Bang, baru ditinggal tidur bentar, itu skrip logistikmu di ${crashedDroneName} udah Crash. Kamu ngetik drone.crop() malah jadi drone.krop(). Kreatif banget nyiptain sintaks baru.`), 500);
 
         setTimeout(() => {
           actionsContainer.innerHTML = `
@@ -1847,15 +2009,16 @@ export class EditorBridge {
     }
 
     if (this.isPhoneOpen) {
-      chatEl.classList.add('active');
+      this.scene.panelManager.open('smartphone-chat');
       this._openPhoneApp(appId);
     } else {
-      chatEl.classList.remove('active');
+      if (this.scene.panelManager.current === 'smartphone-chat') this.scene.panelManager.close();
       this._hideHoverTooltip();
     }
   }
 
   _setupSmartphoneUI() {
+    document.getElementById('btn-workspace-phone')?.addEventListener('click', () => this.toggleSmartphone());
     const btnClose = document.getElementById('btn-close-phone');
     if (btnClose) {
       btnClose.addEventListener('click', () => this.toggleSmartphone(false));
@@ -1919,19 +2082,19 @@ export class EditorBridge {
       const shopItemEl = document.createElement('div');
       shopItemEl.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); padding:8px; border-radius:8px;';
       
-      const emojiMap = { wheat: '🌾', potato: '🥔', apple_tree: '🍏', cactus: '🌵' };
-      const emoji = emojiMap[plantType] || '🌱';
+      const emojiMap = { wheat: '', potato: '', apple_tree: '', cactus: '' };
+      const emoji = emojiMap[plantType] || '';
 
       shopItemEl.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px;">
           <span style="font-size:16px;">${emoji}</span>
           <div style="display:flex; flex-direction:column;">
-            <span style="font-size:10px; font-weight:bold; color:#fff;">${def.name} Seed</span>
-            <span style="font-size:8px; color:#ffd700;">Cost: ${seedCost}g ${isLocked ? `(Lvl ${unlockLevel})` : ''}</span>
+            <span style="font-size:10px; font-weight:bold; color:#edf0d4;">${def.name} Seed</span>
+            <span style="font-size:8px; color:#e9bf62;">Cost: ${seedCost}g ${isLocked ? `(Lvl ${unlockLevel})` : ''}</span>
           </div>
         </div>
-        <button class="btn-buy-seed-remote" data-seed="${plantType}" ${isLocked ? 'disabled' : ''} style="background:#00ffcc; border:none; border-radius:4px; padding:4px 8px; color:#050510; font-family:inherit; font-size:9px; font-weight:bold; cursor:pointer;">
-          ${isLocked ? '🔒' : 'BUY'}
+        <button class="btn-buy-seed-remote" data-seed="${plantType}" ${isLocked ? 'disabled' : ''} style="background:#63d8d1; border:none; border-radius:4px; padding:4px 8px; color:#101a21; font-family:inherit; font-size:9px; font-weight:bold; cursor:pointer;">
+          ${isLocked ? '' : 'BUY'}
         </button>
       `;
 
@@ -1961,6 +2124,14 @@ export class EditorBridge {
   }
 
   toggleWarehouse(forceState = null) {
+    // Warehouse now lives in the right-side storage dock so it can support
+    // direct pointer drag/drop between the backpack and shared inventory.
+    if (this.scene.storageUI) {
+      const shouldOpen = forceState === null ? !this.scene.storageUI.isOpen() : forceState;
+      if (shouldOpen) this.scene.storageUI.open();
+      else this.scene.storageUI.close();
+      return;
+    }
     const whEl = document.getElementById('warehouse-popup');
     if (!whEl) return;
 
@@ -1971,10 +2142,10 @@ export class EditorBridge {
     }
 
     if (this.isWarehouseOpen) {
-      whEl.classList.add('active');
+      this.scene.panelManager.open('warehouse-popup');
       this._renderWarehousePopup();
     } else {
-      whEl.classList.remove('active');
+      if (this.scene.panelManager.current === 'warehouse-popup') this.scene.panelManager.close();
       this._hideHoverTooltip();
     }
   }
@@ -1995,15 +2166,15 @@ export class EditorBridge {
         const items = inv.getAllItems();
         let depositedCount = 0;
         items.forEach(({ id, count }) => {
-          // Do not deposit tools (plow, watering_can) or key items
-          if (id !== 'plow' && id !== 'watering_can' && !id.startsWith('key_') && count > 0) {
+          // Do not deposit tools (plow, watering_can, pickaxe) or key items
+          if (id !== 'plow' && id !== 'watering_can' && id !== 'pickaxe' && !id.startsWith('key_') && count > 0) {
             warehouse.deposit(id, count);
             inv.removeItem(id, count);
             depositedCount += count;
           }
         });
         if (depositedCount > 0) {
-          this.consoleManager.addLine(`📤 Deposited ${depositedCount} items from backpack to warehouse.`, 'info');
+          this.consoleManager.addLine(` Deposited ${depositedCount} items from backpack to warehouse.`, 'info');
           this._renderBackpack();
           this._renderWarehousePopup();
         } else {
@@ -2037,12 +2208,15 @@ export class EditorBridge {
       
       if (i < whItems.length) {
         const { id, count } = whItems[i];
-        const meta = ITEM_METADATA[id] || { name: id, emoji: '📦', rarity: 'Common', sector: 'Umum' };
+        const meta = ITEM_METADATA[id] || { name: id, emoji: '', rarity: 'Common', sector: 'Umum' };
 
         slotEl.className = 'inventory-slot btn-warehouse-popup-item';
         slotEl.setAttribute('data-item-id', id);
+        slotEl.setAttribute('role', 'button'); slotEl.tabIndex = 0;
+        slotEl.setAttribute('aria-label', `${meta.name}, ${count}`);
+        slotEl.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); slotEl.click(); } });
         slotEl.innerHTML = `
-          <div class="inventory-slot-emoji">${meta.emoji}</div>
+          ${pixelIcon(id, 'inventory-slot-emoji')}
           <div class="inventory-slot-qty">${count}</div>
         `;
 
@@ -2064,7 +2238,7 @@ export class EditorBridge {
 
           if (warehouse.withdraw(id, qtyToWithdraw)) {
             this.scene.inventorySystem.addItem(id, qtyToWithdraw);
-            this.consoleManager.addLine(`📥 Retrieved ${qtyToWithdraw}x ${id.replace('_', ' ')} from warehouse to backpack.`, 'info');
+            this.consoleManager.addLine(` Retrieved ${qtyToWithdraw}x ${id.replace('_', ' ')} from warehouse to backpack.`, 'info');
             this._renderBackpack();
             this._renderWarehousePopup();
             
@@ -2090,7 +2264,7 @@ export class EditorBridge {
     const tooltip = document.getElementById('inventory-tooltip');
     if (!tooltip) return;
 
-    const meta = ITEM_METADATA[itemId] || { name: itemId, emoji: '❓', desc: 'Unknown item.', rarity: 'Common', sector: 'Umum' };
+    const meta = ITEM_METADATA[itemId] || { name: itemId, emoji: '', desc: 'Unknown item.', rarity: 'Common', sector: 'Umum' };
     
     // Fallback price list
     const priceMap = {
@@ -2104,39 +2278,39 @@ export class EditorBridge {
 
     // Colors by rarity
     const rarityColors = {
-      Common: '#cbd5e1',
-      Rare: '#38bdf8',
-      Epic: '#c084fc',
-      Legendary: '#fbbf24'
+      Common: '#edf0d4',
+      Rare: '#63d8d1',
+      Epic: '#93a7a1',
+      Legendary: '#e9bf62'
     };
-    const rarityColor = rarityColors[meta.rarity] || '#cbd5e1';
+    const rarityColor = rarityColors[meta.rarity] || '#edf0d4';
 
     // Colors by sector
     const sectorColors = {
-      'Peralatan': '#ff0055',
-      'Pertanian': '#88ff00',
-      'Tambang': '#00e5ff',
-      'Artisan Refineri': '#ffcc00',
-      'Upgrade': '#cc00ff',
-      'Umum': '#ffffff'
+      'Peralatan': '#9b794e',
+      'Pertanian': '#e9bf62',
+      'Tambang': '#63d8d1',
+      'Artisan Refineri': '#e9bf62',
+      'Upgrade': '#93a7a1',
+      'Umum': '#edf0d4'
     };
-    const sectorColor = sectorColors[meta.sector] || '#ffffff';
+    const sectorColor = sectorColors[meta.sector] || '#edf0d4';
 
     tooltip.style.borderColor = rarityColor;
     tooltip.style.boxShadow = `0 10px 25px rgba(0,0,0,0.8), 0 0 15px ${rarityColor}44`;
 
     tooltip.innerHTML = `
-      <div style="font-weight:bold; font-size:12px; color:#fff; display:flex; align-items:center; gap:4px; margin-bottom:4px;">
-        <span>${meta.emoji}</span> <span>${meta.name}</span>
+      <div style="font-weight:bold; font-size:12px; color:#edf0d4; display:flex; align-items:center; gap:4px; margin-bottom:4px;">
+        ${pixelIcon(itemId)} <span>${meta.name}</span>
       </div>
       <div style="display:flex; justify-content:space-between; font-size:9px; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:4px;">
         <span style="color:${rarityColor}; font-weight:bold;">${meta.rarity.toUpperCase()}</span>
         <span style="color:${sectorColor};">${meta.sector}</span>
       </div>
-      <div style="font-size:9.5px; color:#aaa; line-height:1.3; margin-bottom:6px;">
+      <div style="font-size:9.5px; color:#93a7a1; line-height:1.3; margin-bottom:6px;">
         ${meta.desc || 'No description available.'}
       </div>
-      <div style="display:flex; justify-content:space-between; font-size:9px; font-weight:bold; color:#00ffcc; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
+      <div style="display:flex; justify-content:space-between; font-size:9px; font-weight:bold; color:#63d8d1; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
         <span>Owned: ${count}</span>
         ${sellPrice ? `<span>Price: ${sellPrice}g</span>` : ''}
       </div>
@@ -2184,13 +2358,13 @@ export class EditorBridge {
     this._updateActiveDronesCount();
 
     if (!this.deviceManager) {
-      ratesContainer.innerHTML = '<span style="color:#666; font-style:italic;">No active production rates benched.</span>';
+      ratesContainer.innerHTML = '<span style="color:#4a7c59; font-style:italic;">No active production rates benched.</span>';
       return;
     }
 
     const runningDrones = this.deviceManager.getAll().filter(d => d.status === 'running');
     if (runningDrones.length === 0) {
-      ratesContainer.innerHTML = '<span style="color:#666; font-style:italic;">No active production rates benched.</span>';
+      ratesContainer.innerHTML = '<span style="color:#4a7c59; font-style:italic;">No active production rates benched.</span>';
       return;
     }
 
@@ -2198,24 +2372,24 @@ export class EditorBridge {
     const summedRates = {};
     runningDrones.forEach(drone => {
       if (drone.productionRates) {
-        for (const [itemId, ratePerSecond] of Object.entries(drone.productionRates)) {
-          summedRates[itemId] = (summedRates[itemId] || 0) + (ratePerSecond * 60);
+        for (const [itemId, ratePerMinute] of Object.entries(drone.productionRates)) {
+          summedRates[itemId] = (summedRates[itemId] || 0) + ratePerMinute;
         }
       }
     });
 
     const ratesEntries = Object.entries(summedRates);
     if (ratesEntries.length === 0) {
-      ratesContainer.innerHTML = '<span style="color:#888; font-style:italic;">Drones running (calibrating rates)...</span>';
+      ratesContainer.innerHTML = '<span style="color:#93a7a1; font-style:italic;">Drones running (calibrating rates)...</span>';
       return;
     }
 
     ratesContainer.innerHTML = ratesEntries.map(([itemId, ratePerMinute]) => {
-      const meta = ITEM_METADATA[itemId] || { name: itemId, emoji: '📦' };
+      const meta = ITEM_METADATA[itemId] || { name: itemId, emoji: '' };
       return `
         <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; margin-top:2px;">
-          <span>${meta.emoji} ${meta.name}:</span>
-          <span style="color:#00ffcc; font-weight:bold;">+${ratePerMinute.toFixed(1)} / min</span>
+          <span>${pixelIcon(itemId)} ${meta.name}:</span>
+          <span style="color:#63d8d1; font-weight:bold;">+${ratePerMinute.toFixed(1)} / min</span>
         </div>
       `;
     }).join('');

@@ -49,7 +49,8 @@ export default class Player extends Phaser.GameObjects.Sprite {
     const px = tx * TILE_SIZE + TILE_SIZE / 2;
     const py = ty * TILE_SIZE + TILE_SIZE / 2;
 
-    super(scene, px, py, 'player');
+    super(scene, px, py, 'player', 0);
+    this.setDisplaySize(TILE_SIZE, TILE_SIZE);
 
     /** @type {number} Current tile-X */
     this.tileX = tx;
@@ -124,8 +125,7 @@ export default class Player extends Phaser.GameObjects.Sprite {
       return;
     }
 
-    const frameCount = texture.getFrameNames().length
-      + Object.keys(texture.frames).length - 1; // subtract __BASE
+    const frameCount = texture.getFrameNames().length;
 
     // Need at least 16 frames for 4 directions × 4 frames each
     if (frameCount < 16) {
@@ -137,6 +137,7 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
     try {
       for (const [dir, data] of Object.entries(DIRECTION_DATA)) {
+        if (scene.anims.exists(`walk-${dir}`)) continue;
         // Walk animation: 4 frames per direction
         scene.anims.create({
           key: `walk-${dir}`,
@@ -278,6 +279,7 @@ export default class Player extends Phaser.GameObjects.Sprite {
    * @returns {boolean}
    */
   _isDOMInputFocused() {
+    if (this.scene.isModalOpen) return true;
     const active = document.activeElement;
     if (!active) return false;
 

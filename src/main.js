@@ -7,6 +7,8 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config/constants.js';
 import { BootScene } from './scenes/BootScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { MenuScene } from './scenes/MenuScene.js';
+import './ui/workspace.css';
+import { installPixelViewport } from './rendering/viewport.js';
 
 /** Phaser Game Configuration */
 const config = {
@@ -14,14 +16,14 @@ const config = {
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
   parent: 'game-container',
-  resolution: window.devicePixelRatio || 1,
+  resolution: 1,
   backgroundColor: `#${COLORS.GRASS.toString(16).padStart(6, '0')}`,
   pixelArt: true,
   roundPixels: true,
   antialias: false,
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    mode: Phaser.Scale.NONE,
+    autoCenter: Phaser.Scale.NO_CENTER,
   },
   scene: [BootScene, MenuScene, GameScene],
   physics: {
@@ -41,6 +43,7 @@ const config = {
 
 /** Create and start the game */
 const game = new Phaser.Game(config);
+game.events.once('ready', () => installPixelViewport(game));
 
 // Expose game instance for debugging (dev only)
 if (import.meta.env.DEV) {

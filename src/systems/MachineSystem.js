@@ -5,6 +5,116 @@
  */
 
 export const RECIPES = {
+  crafting_table: [
+    {
+      id: 'conveyor_kit',
+      inputs: { copper_ingot: 1, iron_ingot: 1 },
+      output: { id: 'conveyor_kit', count: 1 },
+      timeMs: 5000,
+      name: 'Assemble Conveyor Kit',
+      category: 'Bangunan',
+      description: 'Sabuk berjalan untuk otomatisasi pemindahan item.',
+    },
+    {
+      id: 'warehouse_depot_kit',
+      inputs: { stone: 12, iron_ingot: 4 },
+      output: { id: 'warehouse_depot_kit', count: 1 },
+      timeMs: 12000,
+      name: 'Assemble Warehouse Depot Kit',
+      category: 'Bangunan',
+      description: 'Depot satelit untuk akses penyimpanan gudang pusat.',
+    },
+    {
+      id: 'crafting_table_kit',
+      inputs: { stone: 6, copper_ingot: 2 },
+      output: { id: 'crafting_table_kit', count: 1 },
+      timeMs: 6000,
+      name: 'Assemble Crafting Table Kit',
+      category: 'Bangunan',
+      description: 'Meja kerja perakitan kit bangunan dan peralatan.',
+    },
+    {
+      id: 'warehouse_kit',
+      inputs: { stone: 12, iron_ingot: 4 },
+      output: { id: 'warehouse_kit', count: 1 },
+      timeMs: 12000,
+      name: 'Assemble Warehouse Kit',
+      category: 'Bangunan',
+      description: 'Gudang satelit penyimpanan multi-lokasi.',
+    },
+    {
+      id: 'smelter_kit',
+      inputs: { stone: 10, copper_ingot: 4 },
+      output: { id: 'smelter_kit', count: 1 },
+      timeMs: 8000,
+      name: 'Assemble Smelter Kit',
+      category: 'Bangunan',
+      description: 'Tungku pelebur bijih tambang menjadi batangan logam.',
+    },
+    {
+      id: 'mill_kit',
+      inputs: { stone: 8, iron_ingot: 2 },
+      output: { id: 'mill_kit', count: 1 },
+      timeMs: 6000,
+      name: 'Assemble Mill Kit',
+      category: 'Bangunan',
+      description: 'Mesin giling gandum otomatis.',
+    },
+    {
+      id: 'assembler_kit',
+      inputs: { iron_ingot: 6, copper_ingot: 4 },
+      output: { id: 'assembler_kit', count: 1 },
+      timeMs: 10000,
+      name: 'Assemble Assembler Kit',
+      category: 'Bangunan',
+      description: 'Mesin perakit komponen otomatis.',
+    },
+    {
+      id: 'press_kit',
+      inputs: { stone: 6, iron_ingot: 2 },
+      output: { id: 'press_kit', count: 1 },
+      timeMs: 6000,
+      name: 'Assemble Press Kit',
+      category: 'Bangunan',
+      description: 'Mesin pemeras buah otomatis.',
+    },
+    {
+      id: 'boiler_kit',
+      inputs: { stone: 6, copper_ingot: 3 },
+      output: { id: 'boiler_kit', count: 1 },
+      timeMs: 6000,
+      name: 'Assemble Boiler Kit',
+      category: 'Bangunan',
+      description: 'Ketel perebus sirup otomatis.',
+    },
+    {
+      id: 'pickaxe',
+      inputs: { stone: 4, wild_fiber: 2 },
+      output: { id: 'pickaxe', count: 1 },
+      timeMs: 4000,
+      name: 'Craft Pickaxe',
+      category: 'Peralatan',
+      description: 'Beliung untuk menambang batu dan bijih di lembah tambang.',
+    },
+    {
+      id: 'plow',
+      inputs: { stone: 2, wild_fiber: 2 },
+      output: { id: 'plow', count: 1 },
+      timeMs: 3000,
+      name: 'Craft Wooden Plow',
+      category: 'Peralatan',
+      description: 'Cangkul untuk menggemburkan tanah rumput.',
+    },
+    {
+      id: 'watering_can',
+      inputs: { copper_ingot: 2, wild_fiber: 1 },
+      output: { id: 'watering_can', count: 1 },
+      timeMs: 3000,
+      name: 'Craft Watering Can',
+      category: 'Peralatan',
+      description: 'Penyiram air tanah garapan perkebunan.',
+    },
+  ],
   mill: {
     inputs: { wheat: 2 },
     output: { id: 'flour', count: 1 },
@@ -54,6 +164,12 @@ export const RECIPES = {
       timeMs: 12000,
       name: 'Smelt Iron Ingot',
     },
+    {
+      inputs: { gold_ore: 2, coal: 1 },
+      output: { id: 'gold_ingot', count: 1 },
+      timeMs: 15000,
+      name: 'Smelt Gold Ingot',
+    },
   ],
   assembler: [
     {
@@ -67,6 +183,12 @@ export const RECIPES = {
       output: { id: 'gear', count: 2 },
       timeMs: 15000,
       name: 'Assemble Iron Gear',
+    },
+    {
+      inputs: { wire: 2, gold_ingot: 1 },
+      output: { id: 'chip', count: 1 },
+      timeMs: 20000,
+      name: 'Assemble Microchip',
     },
   ],
   module_crafter: [
@@ -130,6 +252,28 @@ export default class MachineSystem {
       timeRemaining: 0,
       maxTime: 0,
     });
+  }
+
+  /**
+   * Unregister / remove a machine from the system.
+   * Returns any items left in its input and output buffers.
+   * @param {string} id
+   * @returns {{ id: string, type: string, items: Array<{ id: string, count: number }> }|null}
+   */
+  unregisterMachine(id) {
+    const machine = this.machines.get(id);
+    if (!machine) return null;
+
+    const items = [];
+    for (const [itemId, count] of machine.inputBuffer.entries()) {
+      if (count > 0) items.push({ id: itemId, count });
+    }
+    for (const [itemId, count] of machine.outputBuffer.entries()) {
+      if (count > 0) items.push({ id: itemId, count });
+    }
+
+    this.machines.delete(id);
+    return { id, type: machine.type, items };
   }
 
   /**
@@ -204,6 +348,154 @@ export default class MachineSystem {
 
     machine.outputBuffer.clear();
     return result;
+  }
+
+  /**
+   * Get recipes for a machine type or machine id.
+   * @param {string} machineTypeOrId
+   * @returns {Array<object>}
+   */
+  getRecipes(machineTypeOrId) {
+    const machine = this.machines.get(machineTypeOrId);
+    const type = machine ? machine.type : machineTypeOrId;
+    const list = RECIPES[type];
+    if (!list) return [];
+    return Array.isArray(list) ? list : [list];
+  }
+
+  /**
+   * Check if player and/or machine has the required ingredients to craft a recipe.
+   * @param {object|string} recipeOrId
+   * @param {object} inventorySystem
+   * @param {string|null} [machineId=null]
+   * @param {number} [count=1]
+   * @returns {{ canCraft: boolean, maxCraftable: number, missing: object, available: object, reqs: object }}
+   */
+  checkCraftRequirements(recipeOrId, inventorySystem, machineId = null, count = 1) {
+    let recipe = recipeOrId;
+    if (typeof recipe === 'string') {
+      const all = Object.values(RECIPES).flatMap(r => Array.isArray(r) ? r : [r]);
+      recipe = all.find(r => r.id === recipeOrId || r.output?.id === recipeOrId || r.name === recipeOrId);
+    }
+    if (!recipe || !recipe.inputs) {
+      return { canCraft: false, maxCraftable: 0, missing: {}, available: {}, reqs: {} };
+    }
+
+    const machine = machineId ? this.machines.get(machineId) : null;
+    const missing = {};
+    const available = {};
+    const reqs = {};
+    let maxCraftable = Infinity;
+
+    for (const [itemId, neededPerCraft] of Object.entries(recipe.inputs)) {
+      const invCount = inventorySystem ? inventorySystem.getItemCount(itemId) : 0;
+      const machCount = machine && machine.inputBuffer ? (machine.inputBuffer.get(itemId) || 0) : 0;
+      const totalHave = invCount + machCount;
+      const totalNeeded = neededPerCraft * count;
+
+      available[itemId] = totalHave;
+      reqs[itemId] = totalNeeded;
+
+      if (totalHave < totalNeeded) {
+        missing[itemId] = totalNeeded - totalHave;
+      }
+
+      const possibleForThis = Math.floor(totalHave / neededPerCraft);
+      if (possibleForThis < maxCraftable) {
+        maxCraftable = possibleForThis;
+      }
+    }
+
+    if (maxCraftable === Infinity) maxCraftable = 0;
+    const canCraft = Object.keys(missing).length === 0 && count > 0;
+
+    return { canCraft, maxCraftable, missing, available, reqs };
+  }
+
+  /**
+   * Calculate how many times a recipe can be crafted with available ingredients.
+   * @param {object|string} recipeOrId
+   * @param {object} inventorySystem
+   * @param {string|null} [machineId=null]
+   * @returns {number}
+   */
+  getMaxCraftableCount(recipeOrId, inventorySystem, machineId = null) {
+    return this.checkCraftRequirements(recipeOrId, inventorySystem, machineId, 1).maxCraftable;
+  }
+
+  /**
+   * Execute manual crafting of a recipe by the player.
+   * Deducts ingredients from inventory (and machine buffer if needed),
+   * and places the crafted output item(s) into inventory.
+   *
+   * @param {object|string} recipeOrId
+   * @param {object} inventorySystem
+   * @param {string|null} [machineId=null]
+   * @param {number} [count=1]
+   * @returns {{ success: boolean, reason?: string, outputItem?: string, outputCount?: number, countCrafted?: number, recipe?: object, missing?: object }}
+   */
+  craftItem(recipeOrId, inventorySystem, machineId = null, count = 1) {
+    let recipe = recipeOrId;
+    if (typeof recipe === 'string') {
+      const all = Object.values(RECIPES).flatMap(r => Array.isArray(r) ? r : [r]);
+      recipe = all.find(r => r.id === recipeOrId || r.output?.id === recipeOrId || r.name === recipeOrId);
+    }
+    if (!recipe) return { success: false, reason: 'invalid_recipe' };
+    if (count <= 0) return { success: false, reason: 'invalid_count' };
+
+    const check = this.checkCraftRequirements(recipe, inventorySystem, machineId, count);
+    if (!check.canCraft) {
+      return { success: false, reason: 'insufficient_materials', missing: check.missing };
+    }
+
+    const outputId = recipe.output.id;
+    const totalOutputCount = (recipe.output.count || 1) * count;
+
+    // Check inventory capacity
+    if (inventorySystem && typeof inventorySystem.hasSpaceFor === 'function') {
+      if (!inventorySystem.hasSpaceFor(outputId, totalOutputCount)) {
+        return { success: false, reason: 'inventory_full' };
+      }
+    }
+
+    // Deduct inputs
+    const machine = machineId ? this.machines.get(machineId) : null;
+    for (const [itemId, neededPerCraft] of Object.entries(recipe.inputs)) {
+      let needed = neededPerCraft * count;
+
+      if (inventorySystem) {
+        const invHave = inventorySystem.getItemCount(itemId);
+        const takeFromInv = Math.min(invHave, needed);
+        if (takeFromInv > 0) {
+          inventorySystem.removeItem(itemId, takeFromInv);
+          needed -= takeFromInv;
+        }
+      }
+
+      if (needed > 0 && machine && machine.inputBuffer) {
+        const machHave = machine.inputBuffer.get(itemId) || 0;
+        const takeFromMach = Math.min(machHave, needed);
+        if (takeFromMach >= machHave) {
+          machine.inputBuffer.delete(itemId);
+        } else {
+          machine.inputBuffer.set(itemId, machHave - takeFromMach);
+        }
+        needed -= takeFromMach;
+      }
+    }
+
+    // Add output to player inventory
+    if (inventorySystem) {
+      inventorySystem.addItem(outputId, totalOutputCount);
+    }
+
+    return {
+      success: true,
+      recipe,
+      outputItem: outputId,
+      outputCount: totalOutputCount,
+      countCrafted: count,
+    };
   }
 
   /**

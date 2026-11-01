@@ -39,6 +39,9 @@ export default class DeviceManager {
     drone.events.on('module-changed', (data) => {
       this.events.emit('device-updated', { droneId: data.droneId });
     });
+    drone.events.on('inventory-changed', (data) => {
+      this.events.emit('device-updated', { droneId: data.droneId });
+    });
 
     this.events.emit('device-registered', { droneId: drone.id });
   }

@@ -6,6 +6,7 @@
 
 import { GRID_COLS, GRID_ROWS, GROWTH_STAGES, GROWTH_TICK_MS } from '../config/constants.js';
 import { PLANT_TYPES } from '../data/plants.js';
+import { ZoneMap } from './ZoneMap.js';
 
 // ────────────────────────────────────────────────────────────────────
 // Helpers
@@ -44,6 +45,9 @@ function createDefaultTile(x, y) {
     isConveyor: false,
     conveyorDir: null,
     conveyorItem: 'none',
+    isBuilding: false,
+    buildingId: null,
+    buildingType: null,
   };
 }
 
@@ -190,6 +194,22 @@ export default class GridManager {
     }
   }
 
+  /** Mark a tile occupied by a non-machine player building such as a depot. */
+  setBuilding(x, y, buildingId, buildingType) {
+    const tile = this.getTile(x, y);
+    if (!tile) return;
+    tile.isBuilding = buildingId !== null;
+    tile.buildingId = buildingId;
+    tile.buildingType = buildingType;
+  }
+
+  /** True only for an empty, reachable interior tile. */
+  isBuildable(x, y) {
+    if (!this.inBounds(x, y) || x === 0 || y === 0 || x === this.cols - 1 || y === this.rows - 1) return false;
+    const tile = this.getTile(x, y);
+    return Boolean(tile && !tile.isGate && !tile.isOre && !tile.isMachine && !tile.isConveyor && !tile.isBuilding && !tile.hasPlant);
+  }
+
   /**
    * Determine if a tile is walkable by player or drones.
    * @param {number} x
@@ -201,25 +221,8 @@ export default class GridManager {
     const tile = this.tiles[y][x];
     if (!tile) return false;
 
-    // 1. Check outer fence borders
-    if (x === 0 || x === this.cols - 1 || y === 0 || y === this.rows - 1) {
-      return false;
-    }
-
-    // 2. Check zone partition fences and gates
-    // Zone 1 & 2 separator (vertical line x=19, from y=0 to y=19)
-    if (x === 19 && y >= 0 && y <= 19) {
-      if (y === 10) return !tile.isLocked; // Gate 2
-      return false;
-    }
-    // Zone 1/2 & 3 separator (horizontal line y=19, from x=0 to x=39)
-    if (y === 19 && x >= 0 && x <= 39) {
-      if (x === 10) return !tile.isLocked; // Gate 3
-      return false;
-    }
-    // Zone 2/3 & 4 separator (vertical line x=39, from y=0 to y=39)
-    if (x === 39 && y >= 0 && y <= 39) {
-      if (y === 20) return !tile.isLocked; // Gate 4
+    // 1 & 2. Check fences via ZoneMap
+    if (ZoneMap.isFenceTile(x, y, this.cols, this.rows)) {
       return false;
     }
 
@@ -229,7 +232,7 @@ export default class GridManager {
     }
 
     // 4. Check ores & machines
-    if (tile.isMachine) {
+    if (tile.isMachine || tile.isBuilding) {
       return false;
     }
     if (tile.isOre) {
@@ -502,9 +505,11 @@ export default class GridManager {
 
       const targetTile = this.getTile(tx, ty);
 
-      // Warehouse deposit
-      if (scene && scene.warehouse && scene.warehouse.containsTile(tx, ty)) {
-        scene.warehouse.deposit(moveInfo.item, 1);
+      // Warehouse or crafted depot deposit (both use the shared warehouse stock).
+      const storage = scene?.buildingSystem?.getStorageAt(tx, ty)
+        || (scene?.warehouse?.containsTile(tx, ty) ? scene.warehouse : null);
+      if (storage) {
+        storage.deposit(moveInfo.item, 1);
         moveInfo.fromTile.conveyorItem = 'none';
         if (scene.updateTileSprite) scene.updateTileSprite(moveInfo.x, moveInfo.y);
         return;
@@ -545,6 +550,52 @@ export default class GridManager {
 
     for (const move of movingItems) {
       resolveMove(move);
+    }
+
+    // 3. Machine auto-output to adjacent empty conveyor belts pointing away
+    if (scene?.machineSystem?.machines) {
+      for (const machine of scene.machineSystem.machines.values()) {
+        if (!machine.outputBuffer || machine.outputBuffer.size === 0) continue;
+
+        let outputItemId = null;
+        for (const [id, count] of machine.outputBuffer.entries()) {
+          if (count > 0) {
+            outputItemId = id;
+            break;
+          }
+        }
+        if (!outputItemId) continue;
+
+        const neighbors = [
+          { dx: 0, dy: -1, oppositeDir: 'down' },
+          { dx: 0, dy: 1, oppositeDir: 'up' },
+          { dx: -1, dy: 0, oppositeDir: 'right' },
+          { dx: 1, dy: 0, oppositeDir: 'left' },
+        ];
+
+        for (const n of neighbors) {
+          const cx = machine.x + n.dx;
+          const cy = machine.y + n.dy;
+          if (!this.inBounds(cx, cy)) continue;
+
+          const belt = this.getTile(cx, cy);
+          if (belt && belt.isConveyor && belt.conveyorItem === 'none') {
+            if (belt.conveyorDir !== n.oppositeDir) {
+              belt.conveyorItem = outputItemId;
+              const currentCount = machine.outputBuffer.get(outputItemId);
+              if (currentCount <= 1) {
+                machine.outputBuffer.delete(outputItemId);
+              } else {
+                machine.outputBuffer.set(outputItemId, currentCount - 1);
+              }
+              if (scene.updateTileSprite) {
+                scene.updateTileSprite(cx, cy);
+              }
+              break;
+            }
+          }
+        }
+      }
     }
   }
 }

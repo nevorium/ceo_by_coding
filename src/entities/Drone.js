@@ -22,13 +22,14 @@ import {
 import { MODULE_TYPES } from '../data/modules.js';
 import DroneAPI from '../systems/DroneAPI.js';
 import ScriptSandbox from '../systems/ScriptSandbox.js';
+import DroneCapacityBar from './DroneCapacityBar.js';
 
 // LED colours for each status
 const STATUS_COLORS = {
   idle:    COLORS.DRONE_GREEN,
-  running: 0xffff00,  // yellow
+  running: 0xe9bf62,  // yellow
   error:   COLORS.DRONE_RED,
-  paused:  0xff8800,  // orange
+  paused:  0x93a7a1,  // silver
 };
 
 /** Counter for generating unique drone IDs */
@@ -41,12 +42,29 @@ let _droneIdCounter = 0;
 class DroneInventory {
   /**
    * @param {number} capacity - Maximum number of total items
+   * @param {Drone} [drone] - Associated drone reference
    */
-  constructor(capacity) {
+  constructor(capacity, drone = null) {
     /** @type {number} */
     this.capacity = capacity;
+    /** @type {Drone|null} */
+    this.drone = drone;
     /** @type {Map<string, number>} */
     this.items = new Map();
+  }
+
+  setDrone(drone) {
+    this.drone = drone;
+  }
+
+  _notifyChange() {
+    if (this.drone?.events) {
+      this.drone.events.emit('inventory-changed', {
+        used: this.getTotalCount(),
+        capacity: this.capacity,
+        droneId: this.drone.id,
+      });
+    }
   }
 
   /** Total number of items currently held */
@@ -66,6 +84,7 @@ class DroneInventory {
     if (this.getTotalCount() + qty > this.capacity) return false;
     const current = this.items.get(itemId) || 0;
     this.items.set(itemId, current + qty);
+    this._notifyChange();
     return true;
   }
 
@@ -84,6 +103,7 @@ class DroneInventory {
     } else {
       this.items.set(itemId, newCount);
     }
+    this._notifyChange();
     return true;
   }
 
@@ -121,6 +141,7 @@ class DroneInventory {
   /** Clear all items */
   clear() {
     this.items.clear();
+    this._notifyChange();
   }
 }
 
@@ -198,35 +219,42 @@ export default class Drone extends Phaser.GameObjects.Sprite {
     );
     this.scriptSandbox = new ScriptSandbox(this.droneAPI, profileSystem);
 
+    // ── Event emitter for inventory changes ──────────────────────
+    this.events = new Phaser.Events.EventEmitter();
+
     // ── Drone inventory ────────────────────────────────────────────
-    this.droneInventory = new DroneInventory(DRONE_BASE_INVENTORY);
+    this.droneInventory = new DroneInventory(DRONE_BASE_INVENTORY, this);
 
     // ── Add to scene ─────────────────────────────────────────────
     scene.add.existing(this);
     this.setDepth(15);
 
     // ── Shadow (ellipse drawn below the sprite) ──────────────────
-    this.shadow = scene.add.ellipse(px, py + 12, 20, 8, 0x000000, 0.3);
+    this.shadow = scene.add.rectangle(px, py + 12, 16, 3, 0x244c3a);
     this.shadow.setDepth(14);
 
     // ── Status LED (small circle above the sprite) ───────────────
-    this.statusIndicator = scene.add.circle(px, py - 14, 4, STATUS_COLORS.idle);
+    this.statusIndicator = scene.add.rectangle(px, py - 14, 3, 3, STATUS_COLORS.idle);
     this.statusIndicator.setDepth(16);
 
     // ── ID label (small text below the drone) ────────────────────
     this.idLabel = scene.add.text(px, py + 18, this.label, {
       fontFamily: 'JetBrains Mono, monospace',
-      fontSize: '18px',
-      color: '#00ffcc',
+      fontSize: '8px',
+      color: '#93a7a1',
       alpha: 0.9,
-      resolution: 4,
-    }).setOrigin(0.5, 0).setDepth(16).setScale(0.4);
+      resolution: 1,
+    }).setOrigin(0.5, 0).setDepth(16);
+
+    // ── Inventory capacity bar (yellow → orange → red) ───────────
+    this.capacityBar = new DroneCapacityBar(scene, px, py + 28);
+    this.events.on('inventory-changed', () => {
+      this.capacityBar?.setValues(this.droneInventory.getTotalCount(), this.getInventoryCapacity());
+    });
 
     // ── Idle bobbing animation ───────────────────────────────────
     this._startBobbing();
-
-    // ── Event emitter for inventory changes ──────────────────────
-    this.events = new Phaser.Events.EventEmitter();
+    this._updateInventoryBar();
   }
 
   /* ================================================================
@@ -255,6 +283,8 @@ export default class Drone extends Phaser.GameObjects.Sprite {
     }
     this.module = moduleType;
     this.droneInventory.capacity = this.getInventoryCapacity();
+    this.droneInventory._notifyChange();
+    this._updateInventoryBar();
     this.events.emit('module-changed', { module: moduleType, droneId: this.id });
     return { success: true, message: moduleType ? `Equipped ${MODULE_TYPES[moduleType].name}` : 'Module unequipped' };
   }
@@ -434,156 +464,43 @@ export default class Drone extends Phaser.GameObjects.Sprite {
    * @param {string} actionName
    */
   animateAction(actionName) {
-    const scene = this.scene;
-    if (!scene) return;
-
-    switch (actionName) {
-      case 'water': {
-        for (let i = 0; i < 5; i++) {
-          const drop = scene.add.circle(
-            this.x + Phaser.Math.Between(-8, 8),
-            this.y + 8,
-            2,
-            0x4488ff,
-            0.8,
-          );
-          drop.setDepth(16);
-          scene.tweens.add({
-            targets: drop,
-            y: drop.y + 16,
-            alpha: 0,
-            duration: 400,
-            delay: i * 60,
-            onComplete: () => drop.destroy(),
-          });
-        }
-        break;
-      }
-
-      case 'till': {
-        for (let i = 0; i < 4; i++) {
-          const dust = scene.add.circle(
-            this.x + Phaser.Math.Between(-6, 6),
-            this.y + 10,
-            3,
-            0x8b6914,
-            0.6,
-          );
-          dust.setDepth(16);
-          scene.tweens.add({
-            targets: dust,
-            y: dust.y - 8,
-            alpha: 0,
-            scaleX: 2,
-            scaleY: 2,
-            duration: 350,
-            delay: i * 50,
-            onComplete: () => dust.destroy(),
-          });
-        }
-        break;
-      }
-
-      case 'mine': {
-        for (let i = 0; i < 6; i++) {
-          const spark = scene.add.circle(
-            this.x + Phaser.Math.Between(-12, 12),
-            this.y + 8,
-            2,
-            0xaaaaaa, // silver sparks for mining
-            0.9
-          );
-          spark.setDepth(16);
-          scene.tweens.add({
-            targets: spark,
-            x: spark.x + Phaser.Math.Between(-10, 10),
-            y: spark.y + Phaser.Math.Between(10, 20),
-            alpha: 0,
-            duration: 400,
-            delay: i * 50,
-            onComplete: () => spark.destroy()
-          });
-        }
-        break;
-      }
-
-      case 'crop':
-      case 'harvest': {
-        for (let i = 0; i < 6; i++) {
-          const spark = scene.add.circle(
-            this.x + Phaser.Math.Between(-10, 10),
-            this.y,
-            2,
-            0x44ff44,
-            0.9,
-          );
-          spark.setDepth(16);
-          scene.tweens.add({
-            targets: spark,
-            y: spark.y - 20,
-            alpha: 0,
-            duration: 500,
-            delay: i * 40,
-            onComplete: () => spark.destroy(),
-          });
-        }
-        break;
-      }
-
-      case 'plant': {
-        const seed = scene.add.circle(this.x, this.y - 4, 3, 0xdaa520, 1);
-        seed.setDepth(16);
-        scene.tweens.add({
-          targets: seed,
-          y: this.y + 10,
-          alpha: 0,
-          duration: 350,
-          onComplete: () => seed.destroy(),
-        });
-        break;
-      }
-
-      case 'flip': {
-        scene.tweens.add({
-          targets: this,
-          scaleX: -this.scaleX,
-          duration: 200,
-          yoyo: true,
-        });
-        break;
-      }
-
-      case 'transfer': {
-        // Quick pulse in gold to indicate item transfer
-        scene.tweens.add({
-          targets: this,
-          alpha: 0.5,
-          duration: 150,
-          yoyo: true,
-          repeat: 2,
-          onComplete: () => { this.alpha = 1; },
-        });
-        break;
-      }
-
-      default:
-        scene.tweens.add({
-          targets: this,
-          scaleX: 1.15,
-          scaleY: 1.15,
-          duration: 120,
-          yoyo: true,
-        });
-        break;
+    if (!this.scene || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (actionName === 'flip') {
+      this.setFlipX(!this.flipX);
+      this.scene.time.delayedCall(200, () => { if(this.scene)this.setFlipX(!this.flipX); });
+      return;
+    }
+    const color=actionName==='water'?0x63d8d1:actionName==='mine'?0x93a7a1:['harvest','crop','plant'].includes(actionName)?0xe9bf62:0x9b794e;
+    for(let i=0;i<4;i++){
+      const p=this.scene.add.rectangle(Math.round(this.x)+Phaser.Math.Between(-8,8),Math.round(this.y)+8,2,2,color).setDepth(16);
+      this.scene.time.addEvent({delay:80,repeat:3,callback:()=>{p.y+=actionName==='water'?2:-2;}});
+      this.scene.time.delayedCall(350,()=>p.destroy());
     }
   }
 
-  /* ================================================================
-   *  PRIVATE HELPERS
-   * ================================================================ */
+  /** Keep the compact capacity meter accurate even when scripts move items. */
+  _updateInventoryBar(delta = 16) {
+    const total = this.droneInventory?.getTotalCount?.() || 0;
+    const capacity = Math.max(1, this.getInventoryCapacity());
+
+    if (this.capacityBar) {
+      this.capacityBar.setValues(total, capacity);
+      this.capacityBar.update(this.x, this.y + 28, delta);
+    }
+
+    const signature = `${total}/${capacity}`;
+    if (signature !== this._inventorySignature) {
+      this._inventorySignature = signature;
+      this.events?.emit('inventory-changed', { droneId: this.id, total, capacity, used: total });
+    }
+  }
+
+  update(time, delta = 16) {
+    this._updateInventoryBar(delta);
+  }
 
   /**
-   * Keep shadow, LED, and label in sync with the sprite position.
+   * Keep shadow, LED, label, and capacity bar in sync with sprite position.
    * @private
    */
   _syncAttachments() {
@@ -595,6 +512,9 @@ export default class Drone extends Phaser.GameObjects.Sprite {
     }
     if (this.idLabel) {
       this.idLabel.setPosition(this.x, this.y + 18);
+    }
+    if (this.capacityBar) {
+      this.capacityBar.update(this.x, this.y + 28, 16);
     }
     if (this.speechBubble) {
       this.speechBubble.setPosition(this.x, this.y);
@@ -613,7 +533,7 @@ export default class Drone extends Phaser.GameObjects.Sprite {
     const txt = this.scene.add.text(0, 0, text, {
       fontFamily: 'JetBrains Mono, monospace',
       fontSize: '12px',
-      color: '#000000',
+      color: '#101a21',
       align: 'center',
       wordWrap: { width: 140 },
       resolution: 4,
@@ -626,17 +546,17 @@ export default class Drone extends Phaser.GameObjects.Sprite {
     const height = textHeight + padding * 2;
 
     const bubbleBg = this.scene.add.graphics();
-    bubbleBg.fillStyle(0xffffff, 0.95);
-    bubbleBg.lineStyle(1.5, 0x111122, 1);
+    bubbleBg.fillStyle(0xedf0d4, 0.95);
+    bubbleBg.lineStyle(1.5, 0x101a21, 1);
 
     // Draw bubble rounded rect relative to container origin
-    bubbleBg.fillRoundedRect(-width / 2, -height - 18, width, height, 4);
+    bubbleBg.fillRect(-Math.floor(width / 2), -height - 18, width, height);
     bubbleBg.strokeRoundedRect(-width / 2, -height - 18, width, height, 4);
 
     // Tail pointing down
     const tailHeight = 6;
     const tailWidth = 8;
-    bubbleBg.fillStyle(0xffffff, 0.95);
+    bubbleBg.fillStyle(0xedf0d4, 0.95);
     bubbleBg.beginPath();
     bubbleBg.moveTo(-tailWidth / 2, -18);
     bubbleBg.lineTo(0, -18 + tailHeight);
@@ -716,6 +636,7 @@ export default class Drone extends Phaser.GameObjects.Sprite {
    * @private
    */
   _startBobbing() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     this._bobTween = this.scene.tweens.add({
       targets: this,
       y: this.y - 3,
@@ -735,6 +656,7 @@ export default class Drone extends Phaser.GameObjects.Sprite {
     if (this.shadow) this.shadow.destroy();
     if (this.statusIndicator) this.statusIndicator.destroy();
     if (this.idLabel) this.idLabel.destroy();
+    if (this.capacityBar) this.capacityBar.destroy();
     if (this.speechBubble) this.speechBubble.destroy();
     super.destroy(fromScene);
   }

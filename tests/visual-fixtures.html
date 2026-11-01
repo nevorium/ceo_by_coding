@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DroneHarvest — fixture visual</title></head>
+<body>
+  <main id="fixture-tools"><h1>Fixture pixel & mesin</h1><p>Inventaris uji terpisah. Tidak membaca atau menulis save permainan.</p><button id="inspect">Periksa mill</button><button id="market">Periksa pasar</button><button id="advance">Majukan proses 10 detik</button><output id="fixture-stock"></output><div id="gallery"></div></main>
+  <div id="game-container" style="display:none"></div><span id="workspace-zone"></span><button id="btn-toggle-editor" hidden>Menu</button>
+  <section id="machine-inspector" aria-labelledby="machine-title"><header class="rpg-panel-header"><h2 id="machine-title">Mesin</h2><button data-close-panel>Tutup ×</button></header><div id="machine-content" class="inspector-content"></div></section>
+  <section id="market-inspector" aria-labelledby="market-title"><header class="rpg-panel-header"><h2 id="market-title">Pasar kebun</h2><button data-close-panel>Tutup ×</button></header><nav id="market-tabs" class="inspector-tabs"></nav><div id="market-content" class="inspector-content"></div></section>
+  <script type="module">
+    import '../src/ui/workspace.css';
+    import Phaser from 'phaser';
+    import { buildPixelAssets } from '../src/rendering/PixelAssets.js';
+    import MachineSystem from '../src/systems/MachineSystem.js';
+    import InventorySystem from '../src/systems/InventorySystem.js';
+    import EconomySystem from '../src/systems/EconomySystem.js';
+    import PanelManager from '../src/ui/PanelManager.js';
+    import MachineUI from '../src/ui/MachineUI.js';
+    import MarketUI from '../src/ui/MarketUI.js';
+    const images = new Map();
+    for (const [key, bitmap] of buildPixelAssets()) {
+      const canvas = document.createElement('canvas'); canvas.width=bitmap.width;canvas.height=bitmap.height;
+      const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
+      const data=ctx.createImageData(bitmap.width,bitmap.height);data.data.set(bitmap.data);ctx.putImageData(data,0,0);images.set(key,canvas);
+      if(key==='item_atlas'){document.documentElement.style.setProperty('--item-atlas',`url("${canvas.toDataURL()}")`);document.documentElement.style.setProperty('--atlas-width',`${bitmap.width*2}px`);}
+      if(key==='player'||key.startsWith('machine_')&&!key.endsWith('_work')||key.startsWith('plant_')) {
+        const figure=document.createElement('figure');figure.append(canvas);const label=document.createElement('figcaption');label.textContent=key;figure.append(label);document.getElementById('gallery').append(figure);
+      }
+    }
+    const inventory=new InventorySystem();inventory.addItem('wheat',4);
+    const machines=new MachineSystem();machines.registerMachine('mill_test','mill',1,1);
+    const refresh=()=>{document.getElementById('fixture-stock').textContent='Tas fixture: '+inventory.getAllItems().map(i=>`${i.count} ${i.id}`).join(', ')+' · '+inventory.getCoins()+'g';};
+    const scene={events:new Phaser.Events.EventEmitter(),time:{addEvent({delay,callback}){const id=setInterval(callback,delay);return{remove(){clearInterval(id);}};}},textures:{get:key=>({getSourceImage:()=>images.get(key)})},inventorySystem:inventory,machineSystem:machines,profileSystem:{level:8},deviceManager:{getAll:()=>[]},saveSystem:{saveLocal:refresh},hud:{showMessage:refresh}};
+    scene.panelManager=new PanelManager(scene);
+    const machineUI=new MachineUI(scene,machines,inventory),marketUI=new MarketUI(scene,new EconomySystem(inventory,scene.profileSystem),inventory);
+    document.getElementById('inspect').onclick=()=>machineUI.show('mill_test');
+    document.getElementById('market').onclick=()=>marketUI.show();
+    document.getElementById('advance').onclick=()=>{machines.update(10000);refresh();};
+    refresh();
+  </script>
+  <style>
+    body{overflow:auto!important;position:static!important}#fixture-tools{padding:24px;max-width:1200px;margin:auto}#fixture-tools button{min-height:44px;padding:10px;background:#22343c;color:#edf0d4;border:2px solid #42535b}#fixture-stock{display:block;margin:16px 0;color:#e9bf62}#gallery{display:flex;flex-wrap:wrap;gap:20px}figure{margin:0;overflow:auto;max-width:100%;padding:12px;background:#22343c}figure canvas{image-rendering:pixelated;width:auto;height:64px}figcaption{font:10px monospace}#workspace-zone{display:none}
+  </style>
+</body></html>

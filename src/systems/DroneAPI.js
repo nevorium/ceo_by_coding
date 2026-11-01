@@ -3,7 +3,7 @@
  *
  * Harvests now go into the drone's own DroneInventory first.
  * Seeds for planting are pulled from drone inventory first, then player inventory.
- * New methods: transferToPlayer(), transferToWarehouse(), sell(), buy(), supplyFrom().
+ * New methods: transferToPlayer(), transferToWarehouse(), transferFromWarehouse(), sell(), buy(), supplyFrom().
  * Farming, sell/buy, and supplier actions are gated behind module checks.
  */
 
@@ -103,6 +103,10 @@ export default class DroneAPI {
       transferToWarehouse() {
         self._enqueue('transferToWarehouse', []);
       },
+      /** Fill remaining drone capacity with one item from an adjacent warehouse/depot. */
+      transferFromWarehouse(itemId) {
+        self._enqueue('transferFromWarehouse', [itemId]);
+      },
       /**
        * Pull items from an adjacent drone (requires Supplier module).
        * @param {string} targetDroneId
@@ -141,6 +145,10 @@ export default class DroneAPI {
       checkFrontItem() {
         return self._checkFrontItem();
       },
+      /** Place one carried item onto the empty conveyor directly ahead. */
+      depositToConveyor(itemId) {
+        self._enqueue('depositToConveyor', [itemId]);
+      },
       pushItem(direction) {
         self._enqueue('pushItem', [direction]);
       },
@@ -149,6 +157,14 @@ export default class DroneAPI {
       },
       checkNode() {
         return self._checkNode();
+      },
+      /** Inspect the ground at the drone's current tile for explore drops. */
+      checkGround() {
+        return self._checkGround();
+      },
+      /** Collect a resource drop from the current tile. */
+      collect() {
+        self._enqueue('collect', []);
       },
       getBatteryLevel() {
         return self._getBatteryLevel();
@@ -253,15 +269,18 @@ export default class DroneAPI {
         case 'say':              await this._handleSay(action.args[0]); break;
         case 'transferToPlayer': await this._handleTransferToPlayer(); break;
         case 'transferToWarehouse': await this._handleTransferToWarehouse(); break;
+        case 'transferFromWarehouse': await this._handleTransferFromWarehouse(action.args[0]); break;
         case 'supplyFrom':       await this._handleSupplyFrom(action.args[0]); break;
         case 'sell':             await this._handleSell(); break;
         case 'buy':              await this._handleBuy(action.args[0], action.args[1]); break;
         case 'mine':             await this._handleMine(); break;
+        case 'depositToConveyor': await this._handleDepositToConveyor(action.args[0]); break;
         case 'pushItem':         await this._handlePushItem(action.args[0]); break;
         case 'wait':             await this._handleWait(action.args[0]); break;
         case 'depositToMachine': await this._handleDepositToMachine(action.args[0], action.args[1], action.args[2]); break;
         case 'retrieveFromMachine': await this._handleRetrieveFromMachine(action.args[0]); break;
         case 'deliverToSpecialBuyer': await this._handleDeliverToSpecialBuyer(); break;
+        case 'collect':          await this._handleCollect(); break;
         default:
           console.warn(`DroneAPI: unknown action type "${action.type}"`);
           break;
@@ -560,8 +579,12 @@ export default class DroneAPI {
     if (!this.warehouse) {
       throw new Error("No warehouse found in this scene.");
     }
-    if (!this.warehouse.isAdjacentTo(this.drone.tileX, this.drone.tileY)) {
-      throw new Error("Drone must be adjacent to the warehouse to transfer items. Move closer first.");
+    const scene = this.drone.scene;
+    const storage = this.warehouse.isAdjacentTo(this.drone.tileX, this.drone.tileY)
+      ? this.warehouse
+      : scene?.buildingSystem?.getWarehouseAdjacentTo(this.drone.tileX, this.drone.tileY);
+    if (!storage) {
+      throw new Error("Drone must be adjacent to a warehouse or depot to transfer items. Move closer first.");
     }
     const items = this.drone.droneInventory.getAll();
     if (items.length === 0) {
@@ -569,9 +592,37 @@ export default class DroneAPI {
     }
 
     for (const { id, count } of items) {
-      this.warehouse.deposit(id, count);
+      storage.deposit(id, count);
     }
     this.drone.droneInventory.clear();
+    this.drone.events.emit('inventory-changed', { droneId: this.drone.id });
+    await this.drone.executeAction('transfer');
+  }
+
+  /**
+   * Pull one resource type into the drone until it reaches capacity or that
+   * warehouse item runs out. HQ and crafted depots share the same stock.
+   */
+  async _handleTransferFromWarehouse(itemId) {
+    if (!this.warehouse) throw new Error('No warehouse found in this scene.');
+    if (typeof itemId !== 'string' || !itemId) {
+      throw new Error("transferFromWarehouse requires an item ID, for example transferFromWarehouse('wheat').");
+    }
+
+    const scene = this.drone.scene;
+    const storage = this.warehouse.isAdjacentTo(this.drone.tileX, this.drone.tileY)
+      ? this.warehouse
+      : scene?.buildingSystem?.getWarehouseAdjacentTo(this.drone.tileX, this.drone.tileY);
+    if (!storage) throw new Error('Drone must be adjacent to a warehouse or depot to collect cargo.');
+
+    const remaining = this.drone.getInventoryCapacity() - this.drone.droneInventory.getTotalCount();
+    if (remaining <= 0) throw new Error('Drone inventory is already full.');
+    const available = storage.getItemCount(itemId);
+    if (available <= 0) throw new Error(`Warehouse does not contain any '${itemId}'.`);
+
+    const amount = Math.min(available, remaining);
+    if (!storage.withdraw(itemId, amount)) throw new Error(`Could not withdraw '${itemId}' from warehouse.`);
+    this.drone.droneInventory.addItem(itemId, amount);
     this.drone.events.emit('inventory-changed', { droneId: this.drone.id });
     await this.drone.executeAction('transfer');
   }
@@ -638,6 +689,11 @@ export default class DroneAPI {
     if (!this.economySystem) {
       throw new Error("EconomySystem not available.");
     }
+    const market = this.drone.scene?.marketZone;
+    const atMarket = market &&
+      this.drone.tileX >= market.x - 1 && this.drone.tileX <= market.x + market.w &&
+      this.drone.tileY >= market.y - 1 && this.drone.tileY <= market.y + market.h;
+    if (!atMarket) throw new Error('Drone must be beside the Market to sell cargo.');
     const items = this.drone.droneInventory.getAll();
     if (items.length === 0) {
       throw new Error("Cannot sell. Drone inventory is empty.");
@@ -651,9 +707,17 @@ export default class DroneAPI {
 
     let totalEarned = 0;
     for (const { id, count } of sellableItems) {
-      const result = this.economySystem.sellCrop(id, count, this.inventorySystem || { getItemCount: () => count, removeItem: () => true });
+      const droneInv = this.drone.droneInventory;
+      const invOverride = {
+        getItemCount: (item) => droneInv.getItemCount(item),
+        removeItem: (item, qty) => droneInv.removeItem(item, qty),
+        items: droneInv.items,
+      };
+      const result = this.economySystem.sellCrop(id, count, invOverride);
       if (result.success) {
-        this.drone.droneInventory.removeItem(id, count);
+        if (droneInv.getItemCount(id) >= count) {
+          droneInv.removeItem(id, count);
+        }
         totalEarned += result.earned || 0;
       }
     }
@@ -763,6 +827,8 @@ export default class DroneAPI {
         dropItemId = 'iron_ore';
       } else if (oreType === 'coal') {
         dropItemId = 'coal';
+      } else if (oreType === 'stone') {
+        dropItemId = 'stone';
       }
 
       // Add to inventory
@@ -817,6 +883,21 @@ export default class DroneAPI {
     return 'none';
   }
 
+  async _handleDepositToConveyor(itemId) {
+    if (!itemId || !this.drone.droneInventory.hasItem(itemId, 1)) {
+      throw new Error(`Drone inventory does not contain '${itemId}'.`);
+    }
+    const coords = this._getFrontCoords();
+    const tile = this.gridManager.getTile(coords.x, coords.y);
+    if (!tile?.isConveyor) throw new Error('An empty conveyor must be directly in front of the drone.');
+    if (tile.conveyorItem && tile.conveyorItem !== 'none') throw new Error('The conveyor in front is already occupied.');
+    tile.conveyorItem = itemId;
+    this.drone.droneInventory.removeItem(itemId, 1);
+    this.drone.events.emit('inventory-changed', { droneId: this.drone.id });
+    this.drone.scene?.updateTileSprite?.(coords.x, coords.y);
+    await this.drone.executeAction('transfer');
+  }
+
   async _handlePushItem(direction) {
     const frontCoords = this._getFrontCoords();
     const frontTile = this.gridManager.getTile(frontCoords.x, frontCoords.y);
@@ -842,9 +923,11 @@ export default class DroneAPI {
     const targetTile = this.gridManager.getTile(tx, ty);
     const scene = this.drone.scene;
 
-    // Warehouse deposit
-    if (scene && scene.warehouse && scene.warehouse.containsTile(tx, ty)) {
-      scene.warehouse.deposit(item, 1);
+    // Warehouse or crafted depot deposit.
+    const storage = scene?.buildingSystem?.getStorageAt(tx, ty)
+      || (scene?.warehouse?.containsTile(tx, ty) ? scene.warehouse : null);
+    if (storage) {
+      storage.deposit(item, 1);
       frontTile.conveyorItem = 'none';
       if (scene.updateTileSprite) {
         scene.updateTileSprite(frontCoords.x, frontCoords.y);
@@ -907,6 +990,21 @@ export default class DroneAPI {
       return 'depleted';
     }
     return 'none';
+  }
+
+  _checkGround() {
+    return this.drone.scene?.wildlifeSystem?.getDropAt(this.drone.tileX, this.drone.tileY)?.id || 'none';
+  }
+
+  async _handleCollect() {
+    const collected = this.drone.scene?.wildlifeSystem?.collectAt(
+      this.drone.tileX,
+      this.drone.tileY,
+      this.drone.droneInventory,
+    );
+    if (!collected) throw new Error('There is no collectable resource here, or the drone inventory is full.');
+    this.drone.events.emit('inventory-changed', { droneId: this.drone.id });
+    await this.drone.executeAction('harvest');
   }
 
   _getBatteryLevel() {

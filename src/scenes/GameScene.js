@@ -8,6 +8,7 @@ import {
   GAME_WIDTH, GAME_HEIGHT, COLORS,
   STARTING_COINS, GATES, ZONE_BOUNDS
 } from '../config/constants.js';
+import ZoneMap from '../systems/ZoneMap.js';
 import GridManager from '../systems/GridManager.js';
 import GrowthSystem from '../systems/GrowthSystem.js';
 import Player from '../entities/Player.js';
@@ -33,6 +34,15 @@ import SharedMemory from '../systems/SharedMemory.js';
 import MachineSystem from '../systems/MachineSystem.js';
 import SpecialBuyerSystem from '../systems/SpecialBuyerSystem.js';
 import { MODULE_ITEM_IDS, getModuleTypeFromItemId } from '../data/modules.js';
+import OperationsSystem from '../systems/OperationsSystem.js';
+import OperationsUI from '../ui/OperationsUI.js';
+import PanelManager from '../ui/PanelManager.js';
+import BuildingSystem from '../systems/BuildingSystem.js';
+import WildlifeSystem from '../systems/WildlifeSystem.js';
+import StorageUI from '../ui/StorageUI.js';
+import DragManager from '../systems/DragManager.js';
+import { getItem } from '../data/items.js';
+import { isWarehouseStorable } from '../data/buildings.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -61,7 +71,8 @@ export class GameScene extends Phaser.Scene {
     this.unlockedZones = {
       zone2: false,
       zone3: false,
-      zone4: false
+      zone4: false,
+      zone5: false
     };
 
     // ── Give player starting items ──
@@ -70,8 +81,10 @@ export class GameScene extends Phaser.Scene {
     // Starting tools
     this.inventorySystem.addItem('watering_can', 1);
     this.inventorySystem.addItem('plow', 1);
+    this.inventorySystem.addItem('pickaxe', 1);
     // Starting module (one farming module to equip to drone)
     this.inventorySystem.addItem(MODULE_ITEM_IDS.farming, 1);
+    this.inventorySystem.addItem('crafting_table_kit', 1);
 
     // ── Render the tile grid ──
     this.tileSprites = [];
@@ -83,6 +96,12 @@ export class GameScene extends Phaser.Scene {
 
     // ── Create Warehouse ──
     this.warehouse = new Warehouse(this, 10, 2, 2, 2);
+    this.buildingSystem = new BuildingSystem(this);
+    this.wildlifeSystem = new WildlifeSystem(this);
+    this.operationsSystem = new OperationsSystem(
+      this.inventorySystem, this.economySystem, this.profileSystem,
+      () => this.unlockedZones, this.warehouse,
+    );
 
     // ── Create Player ──
     this.player = new Player(this, 5, 5);
@@ -103,10 +122,13 @@ export class GameScene extends Phaser.Scene {
     this.deviceManager.register(this.drone);
 
     // ── Create UI ──
+    this.dragManager = new DragManager(this);
+    this.panelManager = new PanelManager(this);
     this.hud = new HUD(this, this.inventorySystem);
     this.hotbar = new Hotbar(this, this.inventorySystem);
     this.marketUI = new MarketUI(this, this.economySystem, this.inventorySystem);
     this.machineUI = new MachineUI(this, this.machineSystem, this.inventorySystem);
+    this.storageUI = new StorageUI(this);
 
     // Buyer NPC sprite field
     this.buyerNPCSprite = null;
@@ -114,21 +136,21 @@ export class GameScene extends Phaser.Scene {
     // ── Setup Special Buyer Event Listeners ──
     this.specialBuyerSystem.events.on('buyer-arrived', (buyer) => {
       if (this.hud) {
-        this.hud.showMessage(`✨ Special Buyer ${buyer.name} arrived! Wants ${buyer.reqCount}x ${buyer.reqItem.replace('_', ' ')}. Reward: ${buyer.reward}g!`, 5000);
+        this.hud.showMessage(` Special Buyer ${buyer.name} arrived! Wants ${buyer.reqCount}x ${buyer.reqItem.replace('_', ' ')}. Reward: ${buyer.reward}g!`, 5000);
       }
       this._spawnSpecialBuyerNPC();
     });
 
     this.specialBuyerSystem.events.on('buyer-left', (buyer) => {
       if (this.hud) {
-        this.hud.showMessage(`💨 Special Buyer ${buyer.name} left.`, 3000);
+        this.hud.showMessage(` Special Buyer ${buyer.name} left.`, 3000);
       }
       this._destroySpecialBuyerNPC();
     });
 
     this.specialBuyerSystem.events.on('buyer-fulfilled', (buyer) => {
       if (this.hud) {
-        this.hud.showMessage(`💰 Order fulfilled for ${buyer.name}! +${buyer.reward}g!`, 4000);
+        this.hud.showMessage(` Order fulfilled for ${buyer.name}! +${buyer.reward}g!`, 4000);
       }
       this.inventorySystem.addCoins(buyer.reward);
       this.profileSystem.addXp(50);
@@ -140,8 +162,9 @@ export class GameScene extends Phaser.Scene {
     // Equip default tools to hotbar (automatically registers and deducts from general inventory)
     this.hotbar.moveItemToHotbar('plow', 0);
     this.hotbar.moveItemToHotbar('watering_can', 1);
-    this.hotbar.moveItemToHotbar('wheat_seed', 2);
-    this.hotbar.moveItemToHotbar('potato_seed', 3);
+    this.hotbar.moveItemToHotbar('pickaxe', 2);
+    this.hotbar.moveItemToHotbar('wheat_seed', 3);
+    this.hotbar.moveItemToHotbar('potato_seed', 4);
 
     // ── Create selection cursor ──
     this.selectionCursor = this.add.image(0, 0, 'cursor');
@@ -180,8 +203,12 @@ export class GameScene extends Phaser.Scene {
         this.editorBridge._renderProfile();
         this.editorBridge._renderBackpack();
       }
+      if (!this.buildingSystem.buildings.size && !this.inventorySystem.hasItem('crafting_table_kit', 1)) {
+        this.inventorySystem.addItem('crafting_table_kit', 1);
+      }
     }
 
+    this.operationsUI = new OperationsUI(this);
     // ── Setup Conveyor Belt Ticker ──
     this.time.addEvent({
       delay: 1000,
@@ -254,12 +281,12 @@ export class GameScene extends Phaser.Scene {
 
     // ── Setup XP Gain Event Listener ──
     this.events.on('xp-gain', (data) => {
-      this._showFloatingText(data.x, data.y, `+${data.amount} XP`, 0x00ffff);
+      this._showFloatingText(data.x, data.y, `+${data.amount} XP`, 0x63d8d1);
     });
 
     // ── Setup Level Up Listener ──
     this.profileSystem.events.on('level-up', (data) => {
-      this.hud.showMessage(`🎉 LEVEL UP! Reached Level ${data.level}!`, 4000);
+      this.hud.showMessage(` LEVEL UP! Reached Level ${data.level}!`, 4000);
       this._emitFruitParticles(this.player.tileX, this.player.tileY);
     });
 
@@ -279,7 +306,30 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Show welcome message
-    this.hud.showMessage('Welcome! Hotbar: 1-8 to select tool. SPACE to use. E to interact.', 5000);
+    this.hud.showMessage('1–8 pilih alat · Spasi gunakan · E interaksi', 4000);
+
+    // Dev helper (active in DEV or with ?debug=1)
+    if (import.meta.env.DEV || new URLSearchParams(window.location.search).get('debug') === '1') {
+      window.__dev = {
+        give: (id, qty = 1) => {
+          this.inventorySystem.addItem(id, qty);
+          this.hotbar?.refresh();
+          console.log(`[Dev] Gave ${qty}x ${id}`);
+        },
+        coins: (amount) => {
+          this.inventorySystem.addCoins(amount);
+          console.log(`[Dev] Added ${amount} coins. Total: ${this.inventorySystem.getCoins()}`);
+        },
+        tp: (tx, ty) => {
+          if (this.player) {
+            this.player.setPosition(tx * TILE_SIZE, ty * TILE_SIZE);
+            this.player.tileX = tx;
+            this.player.tileY = ty;
+            console.log(`[Dev] Teleported to tile (${tx}, ${ty})`);
+          }
+        },
+      };
+    }
   }
 
   spawnNewDrone() {
@@ -323,6 +373,8 @@ export class GameScene extends Phaser.Scene {
     // Update refineries and special buyers
     if (this.machineSystem) this.machineSystem.update(delta);
     if (this.specialBuyerSystem) this.specialBuyerSystem.update(delta);
+    this.wildlifeSystem?.update(delta);
+    this.buildingSystem?.updatePreview(this.input.activePointer);
 
     // Update mined ores regeneration
     if (this.minedOres) {
@@ -353,6 +405,17 @@ export class GameScene extends Phaser.Scene {
     if (this.hud) {
       this.hud.update();
     }
+    this.panelManager?.updateHudZone();
+    this._updateMachineVisuals(time);
+
+    // Auto-close storage dock if player moves away from warehouse/depot
+    if (this.storageUI?.isOpen() && this.player) {
+      const nearHQ = this.warehouse && this.warehouse.isAdjacentTo(this.player.tileX, this.player.tileY);
+      const nearDepot = this.buildingSystem?.getWarehouseAdjacentTo(this.player.tileX, this.player.tileY);
+      if (!nearHQ && !nearDepot) {
+        this.storageUI.close();
+      }
+    }
 
     // Update floating interaction prompts
     this._updateInteractionPrompts();
@@ -373,9 +436,11 @@ export class GameScene extends Phaser.Scene {
   // ══════════════════════════════════════
 
   _createTileGrid() {
+    this.conveyorItemSprites = [];
     for (let y = 0; y < GRID_ROWS; y++) {
       this.tileSprites[y] = [];
       this.plantSprites[y] = [];
+      this.conveyorItemSprites[y] = [];
       for (let x = 0; x < GRID_COLS; x++) {
         const tileSprite = this.add.image(
           x * TILE_SIZE + TILE_SIZE / 2,
@@ -385,34 +450,19 @@ export class GameScene extends Phaser.Scene {
         tileSprite.setDepth(0);
         this.tileSprites[y][x] = tileSprite;
         this.plantSprites[y][x] = null;
+        this.conveyorItemSprites[y][x] = null;
       }
     }
   }
 
   _createFarmLayout() {
-    // 1. Draw all fences
-    // Outer border fences
-    for (let x = 0; x < GRID_COLS; x++) {
-      this._setTileTexture(x, 0, 'tile_fence');
-      this._setTileTexture(x, GRID_ROWS - 1, 'tile_fence');
-    }
+    // 1. Draw all fences via ZoneMap
     for (let y = 0; y < GRID_ROWS; y++) {
-      this._setTileTexture(0, y, 'tile_fence');
-      this._setTileTexture(GRID_COLS - 1, y, 'tile_fence');
-    }
-
-    // Zone separators fences
-    // separator x=19 (rows 0-19)
-    for (let y = 0; y <= 19; y++) {
-      this._setTileTexture(19, y, 'tile_fence');
-    }
-    // separator y=19 (cols 0-39)
-    for (let x = 0; x <= 39; x++) {
-      this._setTileTexture(x, 19, 'tile_fence');
-    }
-    // separator x=39 (rows 0-39)
-    for (let y = 0; y <= 39; y++) {
-      this._setTileTexture(39, y, 'tile_fence');
+      for (let x = 0; x < GRID_COLS; x++) {
+        if (ZoneMap.isFenceTile(x, y, GRID_COLS, GRID_ROWS)) {
+          this._setTileTexture(x, y, 'tile_fence');
+        }
+      }
     }
 
     // Path to market
@@ -424,6 +474,13 @@ export class GameScene extends Phaser.Scene {
     // Path to warehouse
     for (let x = 9; x <= 12; x++) {
       this._setTileTexture(x, 1, 'tile_path');
+    }
+
+    // Set warehouse building footprint for central warehouse
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        this.gridManager.setBuilding(10 + dx, 2 + dy, 'warehouse_hq', 'warehouse');
+      }
     }
 
     // Pre-till some tiles for tutorial
@@ -438,11 +495,13 @@ export class GameScene extends Phaser.Scene {
     this.gridManager.setGate(19, 10, 'zone2', !this.unlockedZones.zone2);
     this.gridManager.setGate(10, 19, 'zone3', !this.unlockedZones.zone3);
     this.gridManager.setGate(39, 20, 'zone4', !this.unlockedZones.zone4);
+    this.gridManager.setGate(20, 39, 'zone5', !this.unlockedZones.zone5);
 
     // Apply gate textures
     this._updateTileSprite(19, 10);
     this._updateTileSprite(10, 19);
     this._updateTileSprite(39, 20);
+    this._updateTileSprite(20, 39);
 
     // 3. Register Crafting Refineries in Zone 2
     this.machineSystem.registerMachine('mill_001', 'mill', 25, 5);
@@ -479,8 +538,12 @@ export class GameScene extends Phaser.Scene {
       { x: 5, y: 25, type: 'coal' },
       { x: 6, y: 25, type: 'coal' },
       { x: 5, y: 26, type: 'coal' },
+      { x: 8, y: 28, type: 'stone' },
+      { x: 9, y: 28, type: 'stone' },
       { x: 15, y: 30, type: 'copper' },
       { x: 16, y: 30, type: 'copper' },
+      { x: 18, y: 26, type: 'stone' },
+      { x: 22, y: 34, type: 'stone' },
       { x: 25, y: 32, type: 'iron' },
       { x: 26, y: 32, type: 'iron' },
       { x: 35, y: 35, type: 'gold' }
@@ -498,6 +561,38 @@ export class GameScene extends Phaser.Scene {
     this.machineSystem.registerMachine('crafter_001', 'module_crafter', 48, 20);
     this.gridManager.setMachine(48, 20, 'crafter_001', 'module_crafter');
     this._updateTileSprite(48, 20);
+
+    // 7. Register Southern Wilds (Zone 5 Explore Zone) Stone Quarry & Natural Veins
+    const zone5OreNodes = [
+      { x: 5, y: 44, type: 'stone' },
+      { x: 6, y: 44, type: 'stone' },
+      { x: 5, y: 45, type: 'stone' },
+      { x: 12, y: 48, type: 'stone' },
+      { x: 13, y: 48, type: 'stone' },
+      { x: 14, y: 49, type: 'stone' },
+      { x: 22, y: 45, type: 'stone' },
+      { x: 23, y: 45, type: 'stone' },
+      { x: 28, y: 52, type: 'stone' },
+      { x: 29, y: 52, type: 'stone' },
+      { x: 30, y: 53, type: 'stone' },
+      { x: 8, y: 54, type: 'stone' },
+      { x: 9, y: 54, type: 'stone' },
+      { x: 18, y: 55, type: 'iron' },
+      { x: 32, y: 46, type: 'coal' },
+      { x: 35, y: 55, type: 'gold' },
+    ];
+    zone5OreNodes.forEach(node => {
+      this.gridManager.setOre(node.x, node.y, node.type);
+      this._updateTileSprite(node.x, node.y);
+    });
+
+    // Trail leading into Southern Wilds through Gate 5
+    for (let y = 40; y <= 45; y++) {
+      this._setTileTexture(20, y, 'tile_path');
+    }
+    for (let x = 18; x <= 22; x++) {
+      this._setTileTexture(x, 45, 'tile_path');
+    }
   }
 
   _setTileTexture(x, y, textureKey) {
@@ -522,11 +617,14 @@ export class GameScene extends Phaser.Scene {
       sprite.setTexture(`tile_ore_${tile.oreType}`);
     } else if (tile.isMachine) {
       sprite.setTexture(`machine_${tile.machineType}`);
+    } else if (tile.isConveyor) {
+      sprite.setTexture(`tile_conveyor_${tile.conveyorDir}`);
     } else if (tile.isGate) {
       if (tile.isLocked) {
         if (tile.gateKey === 'zone2') sprite.setTexture('tile_gate_debris');
         else if (tile.gateKey === 'zone3') sprite.setTexture('tile_gate_iron');
         else if (tile.gateKey === 'zone4') sprite.setTexture('tile_gate_laser');
+        else if (tile.gateKey === 'zone5') sprite.setTexture('tile_gate_iron');
       } else {
         sprite.setTexture('tile_path');
       }
@@ -536,13 +634,7 @@ export class GameScene extends Phaser.Scene {
       sprite.setTexture('tile_tilled');
     } else {
       // Revert to layout-default texture
-      if (x === 0 || x === this.gridManager.cols - 1 || y === 0 || y === this.gridManager.rows - 1) {
-        sprite.setTexture('tile_fence');
-      } else if (x === 19 && y >= 0 && y <= 19 && y !== 10) {
-        sprite.setTexture('tile_fence');
-      } else if (y === 19 && x >= 0 && x <= 39 && x !== 10) {
-        sprite.setTexture('tile_fence');
-      } else if (x === 39 && y >= 0 && y <= 39 && y !== 20) {
+      if (ZoneMap.isFenceTile(x, y, this.gridManager.cols, this.gridManager.rows)) {
         sprite.setTexture('tile_fence');
       } else {
         const isPath = (x >= 15 && x < 18 && y >= 1 && y <= 2) || (x >= 9 && x <= 12 && y === 1);
@@ -551,6 +643,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this._updatePlantSprite(x, y);
+    this._updateConveyorItemSprite(x, y);
   }
 
   _updatePlantSprite(x, y) {
@@ -573,26 +666,33 @@ export class GameScene extends Phaser.Scene {
           textureKey
         );
         plantSprite.setDepth(3);
-        plantSprite.setScale(0.8);
-        this.tweens.add({
-          targets: plantSprite,
-          scaleX: 1,
-          scaleY: 1,
-          duration: 200,
-          ease: 'Back.easeOut',
-        });
-
-        if (tile.hasFruit) {
-          this.tweens.add({
-            targets: plantSprite,
-            alpha: { from: 0.9, to: 1 },
-            duration: 800,
-            yoyo: true,
-            repeat: -1,
-          });
-        }
 
         this.plantSprites[y][x] = plantSprite;
+      }
+    }
+  }
+
+  _updateConveyorItemSprite(x, y) {
+    const tile = this.gridManager?.getTile(x, y);
+    if (!tile) return;
+
+    if (this.conveyorItemSprites?.[y]?.[x]) {
+      this.conveyorItemSprites[y][x].destroy();
+      this.conveyorItemSprites[y][x] = null;
+    }
+
+    if (tile.isConveyor && tile.conveyorItem && tile.conveyorItem !== 'none') {
+      const textureKey = `icon_${tile.conveyorItem}`;
+      if (this.textures && this.textures.exists(textureKey)) {
+        const itemSprite = this.add.image(
+          x * TILE_SIZE + TILE_SIZE / 2,
+          y * TILE_SIZE + TILE_SIZE / 2,
+          textureKey
+        );
+        itemSprite.setDepth(2);
+        if (this.conveyorItemSprites?.[y]) {
+          this.conveyorItemSprites[y][x] = itemSprite;
+        }
       }
     }
   }
@@ -601,12 +701,41 @@ export class GameScene extends Phaser.Scene {
   //  INPUT HANDLING
   // ══════════════════════════════════════
 
+  _updateMachineVisuals(time) {
+    const frame = Math.floor(time / 500);
+    if (this._machineVisualFrame === frame) return;
+    this._machineVisualFrame = frame;
+    this.machineIndicators ||= new Map();
+    for (const machine of this.machineSystem.machines.values()) {
+      const sprite = this.tileSprites[machine.y]?.[machine.x];
+      if (sprite) sprite.setTexture(`machine_${machine.type}${machine.activeRecipe && frame % 2 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? '_work' : ''}`);
+      let marker = this.machineIndicators.get(machine.id);
+      if (!marker) {
+        marker = this.add.rectangle(machine.x * TILE_SIZE + 27, machine.y * TILE_SIZE + 5, 4, 4, 0x42535b).setDepth(5);
+        this.machineIndicators.set(machine.id, marker);
+      }
+      marker.setFillStyle(machine.outputBuffer.size ? 0xe9bf62 : machine.activeRecipe ? 0x63d8d1 : 0x42535b);
+    }
+  }
+
   _setupInput() {
-    // SPACE uses active hotbar item on facing tile
+    // SPACE uses active hotbar item on facing tile or attacks animal mob
     this.input.keyboard.on('keydown-SPACE', () => {
       if (this._isDOMInputFocused()) return;
       if (this.marketUI.isVisible()) return;
       if (this.machineUI && this.machineUI.isVisible()) return;
+      if (this.storageUI?.isOpen()) return;
+
+      const facing = this.player?.getFacingTile?.();
+      let targetAnimal = facing ? this.wildlifeSystem?.getAnimalAt(facing.x, facing.y) : null;
+      if (!targetAnimal && this.player) {
+        targetAnimal = this.wildlifeSystem?.getAnimalNear(this.player.tileX, this.player.tileY, 1.2);
+      }
+      if (targetAnimal) {
+        this._attackAnimal(targetAnimal);
+        return;
+      }
+
       this._useHotbarItem();
     });
 
@@ -630,6 +759,8 @@ export class GameScene extends Phaser.Scene {
       if (this.machineUI && this.machineUI.isVisible()) {
         this.machineUI.hide();
       }
+      if (this.buildingSystem?.isActive) this.buildingSystem.cancel();
+      if (this.storageUI?.isOpen()) this.storageUI.close();
     });
 
     // Q — Toggle Eli's Smartphone Overlay
@@ -640,12 +771,21 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // B — Toggle Backpack Popup Overlay
+    // B — Build Mode
     this.input.keyboard.on('keydown-B', () => {
       if (this._isDOMInputFocused()) return;
-      if (this.editorBridge) {
-        this.editorBridge.toggleBackpack();
-      }
+      this.buildingSystem?.toggle();
+    });
+
+    this.input.keyboard.on('keydown-R', () => {
+      if (this._isDOMInputFocused()) return;
+      this.buildingSystem?.rotate();
+    });
+
+    // X — Toggle Dismantle Mode in Building System
+    this.input.keyboard.on('keydown-X', () => {
+      if (this._isDOMInputFocused()) return;
+      this.buildingSystem?.toggleDismantle();
     });
 
     // Mouse click on ground to perform action
@@ -661,6 +801,11 @@ export class GameScene extends Phaser.Scene {
       const isClickingHotbar = gameObjects.some(go => this.hotbar && this.hotbar.isHotbarObject(go));
       if (isClickingHotbar) return;
 
+      if (this.buildingSystem?.isActive) {
+        this.buildingSystem.handlePointerDown(pointer);
+        return;
+      }
+
       // Execute action
       this._useHotbarItem();
     });
@@ -671,6 +816,9 @@ export class GameScene extends Phaser.Scene {
         Phaser.Input.Keyboard.KeyCodes.SPACE,
         Phaser.Input.Keyboard.KeyCodes.E,
         Phaser.Input.Keyboard.KeyCodes.Q,
+        Phaser.Input.Keyboard.KeyCodes.R,
+        Phaser.Input.Keyboard.KeyCodes.B,
+        Phaser.Input.Keyboard.KeyCodes.X,
         Phaser.Input.Keyboard.KeyCodes.ESC,
         Phaser.Input.Keyboard.KeyCodes.ONE,
         Phaser.Input.Keyboard.KeyCodes.TWO,
@@ -687,10 +835,11 @@ export class GameScene extends Phaser.Scene {
 
   /** Check if DOM editor/input is focused — guards all game key handlers */
   _isDOMInputFocused() {
+    if (this.isModalOpen) return true;
     const active = document.activeElement;
     if (!active) return false;
     const tag = active.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     const mc = document.getElementById('monaco-container');
     if (mc && mc.contains(active)) return true;
     return false;
@@ -719,22 +868,32 @@ export class GameScene extends Phaser.Scene {
 
     if (this.machineUI && this.machineUI.isVisible()) return;
 
+    // Check if cursor targets an animal mob
+    const targetAnimal = this.wildlifeSystem?.getAnimalAt(x, y);
+    if (targetAnimal) {
+      this._attackAnimal(targetAnimal);
+      return;
+    }
+
     // Check if near market
     if (this._isTileInMarketZone(x, y)) {
       this.marketUI.show();
       return;
     }
 
-    const actionInfo = this.hotbar.getActiveItemAction();
-    if (!actionInfo) {
-      // No item — try smart action
-      const tile = this.gridManager.getTile(x, y);
-      if (tile) this._doSmartAction(x, y, tile);
+    const tile = this.gridManager.getTile(x, y);
+    if (!tile) return;
+
+    if (tile.isMachine && tile.machineId) {
+      this.machineUI.show(tile.machineId);
       return;
     }
 
-    const tile = this.gridManager.getTile(x, y);
-    if (!tile) return;
+    const actionInfo = this.hotbar.getActiveItemAction();
+    if (!actionInfo) {
+      this._doSmartAction(x, y, tile);
+      return;
+    }
 
     switch (actionInfo.action) {
       case 'till':
@@ -747,13 +906,48 @@ export class GameScene extends Phaser.Scene {
         this.selectedSeed = actionInfo.plantType;
         this._doPlant(x, y, tile);
         break;
+      case 'mine':
+        this._doMine(x, y, tile);
+        break;
       default:
         this._doSmartAction(x, y, tile);
         break;
     }
   }
 
-  /** E key interaction — market, warehouse, drone equip */
+  _attackAnimal(animal) {
+    if (!animal || !this.wildlifeSystem) return;
+    const activeItem = this.hotbar?.getActiveItem?.();
+    let damage = 1;
+    let weaponName = 'Tangan Kosong';
+    if (activeItem === 'pickaxe') {
+      damage = 2;
+      weaponName = 'Pickaxe';
+    } else if (activeItem === 'plow') {
+      damage = 2;
+      weaponName = 'Plow';
+    } else if (activeItem) {
+      weaponName = getItem(activeItem)?.name || activeItem;
+    }
+
+    const fromX = this.player ? this.player.tileX : animal.tileX;
+    const fromY = this.player ? this.player.tileY : animal.tileY;
+
+    // Visual strike feedback
+    this._emitPixelParticles(animal.tileX, animal.tileY, 0xff4444, 7);
+    this._showFloatingText(animal.tileX, animal.tileY, `-${damage} HP`, '#ff4444');
+    this.cameras.main?.shake?.(90, 0.003);
+
+    const result = this.wildlifeSystem.damageAnimal(animal.id, damage, fromX, fromY, this);
+    if (result.defeated) {
+      this.hud?.showMessage?.(`Menumbangkan ${result.animalName}! Loot berjatuhan di tanah (+${result.xp} XP).`, 2500);
+      this.saveSystem?.saveLocal?.();
+    } else {
+      this.hud?.showMessage?.(`Memukul ${result.animalName} (${weaponName}: -${damage} HP, sisa ${result.remainingHp}/${result.maxHp})`, 1200);
+    }
+  }
+
+  /** E key interaction — market, warehouse, drone equip, fauna, loot */
   _doInteract() {
     if (!this.player) return;
     const px = this.player.tileX;
@@ -765,10 +959,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Near warehouse?
-    if (this.warehouse && this.warehouse.isAdjacentTo(px, py)) {
-      if (this.editorBridge) {
-        this.editorBridge.toggleWarehouse();
+    // Near warehouse HQ or a crafted depot?
+    const storage = this.warehouse && this.warehouse.isAdjacentTo(px, py)
+      ? this.warehouse
+      : this.buildingSystem?.getWarehouseAdjacentTo(px, py);
+    if (storage) {
+      if (this.storageUI) {
+        this.storageUI.toggle();
         this.hud.showMessage('Warehouse Storage: Opened Warehouse Storage Panel!', 4000);
       } else {
         this.hud.showMessage('Warehouse: Go to Devices tab in Code panel to manage storage!', 4000);
@@ -778,8 +975,52 @@ export class GameScene extends Phaser.Scene {
 
     // Facing tile action
     const facing = this.player.getFacingTile();
+
+    // Check animal mob first when facing
+    const facingAnimal = this.wildlifeSystem?.getAnimalAt(facing.x, facing.y);
+    if (facingAnimal) {
+      this._attackAnimal(facingAnimal);
+      return;
+    }
+
+    const dropTarget = this.wildlifeSystem?.getDropAt(facing.x, facing.y)
+      ? { x: facing.x, y: facing.y, item: this.wildlifeSystem.getDropAt(facing.x, facing.y) }
+      : (this.wildlifeSystem?.getDropAt(px, py)
+        ? { x: px, y: py, item: this.wildlifeSystem.getDropAt(px, py) }
+        : null);
+
+    if (dropTarget && this.wildlifeSystem?.collectAt(dropTarget.x, dropTarget.y, this.inventorySystem)) {
+      const dropName = getItem(dropTarget.item.id)?.name || dropTarget.item.id;
+      this.hud.showMessage(`📦 ${dropName} (${dropTarget.item.count}) dikumpulkan.`, 1600);
+      this.saveSystem?.saveLocal();
+      return;
+    }
+    const cacheResult = this.wildlifeSystem?.openCacheAt(facing.x, facing.y, this.inventorySystem, this.economySystem, this.profileSystem);
+    if (cacheResult && cacheResult.success) {
+      this._emitPixelParticles(facing.x, facing.y, 0xe9bf62, 12);
+      this.hud?.showMessage(`✨ Membuka ${cacheResult.cache.name}! Mendapatkan reward penjelajahan.`, 3000);
+      this.saveSystem?.saveLocal();
+      return;
+    } else if (cacheResult && cacheResult.reason === 'inventory_full') {
+      this.hud?.showMessage('⚠️ Tas penuh! Kosongkan slot ransel untuk membuka peti.', 2400);
+      return;
+    }
     const tile = this.gridManager.getTile(facing.x, facing.y);
     if (tile) {
+      if (tile.isConveyor && tile.conveyorItem && tile.conveyorItem !== 'none') {
+        const item = tile.conveyorItem;
+        if (this.inventorySystem && typeof this.inventorySystem.hasSpaceFor === 'function' && !this.inventorySystem.hasSpaceFor(item, 1)) {
+          this.hud?.showMessage?.('⚠️ Tas penuh! Kosongkan slot ransel terlebih dahulu.', 2000);
+          return;
+        }
+        tile.conveyorItem = 'none';
+        this.inventorySystem.addItem(item, 1);
+        this._updateTileSprite(facing.x, facing.y);
+        const itemName = getItem(item)?.name || item;
+        this.hud?.showMessage?.(`📦 Mengambil ${itemName} dari Conveyor.`, 1600);
+        this._emitDirtParticles(facing.x, facing.y);
+        return;
+      }
       if (tile.isGate && tile.isLocked) {
         this._interactWithGate(facing.x, facing.y, tile);
         return;
@@ -897,13 +1138,50 @@ export class GameScene extends Phaser.Scene {
         this.gridManager.cropPlant(x, y);
         this._updateTileSprite(x, y);
         this._updatePlantSprite(x, y);
-        this.hud.showMessage('⚠️ Premature harvest! Growth reset.', 2000);
+        this.hud.showMessage(' Premature harvest! Growth reset.', 2000);
       }
     }
   }
 
   _doSmartAction(x, y, tile) {
-    if (tile.hasPlant) {
+    const animalAtTarget = this.wildlifeSystem?.getAnimalAt(x, y);
+    if (animalAtTarget) {
+      this._attackAnimal(animalAtTarget);
+      return;
+    }
+    if (tile.isConveyor) {
+      if (tile.conveyorItem && tile.conveyorItem !== 'none') {
+        const item = tile.conveyorItem;
+        if (this.inventorySystem && typeof this.inventorySystem.hasSpaceFor === 'function' && !this.inventorySystem.hasSpaceFor(item, 1)) {
+          this.hud?.showMessage?.('⚠️ Tas penuh! Kosongkan slot ransel terlebih dahulu.', 2000);
+          return;
+        }
+        tile.conveyorItem = 'none';
+        this.inventorySystem.addItem(item, 1);
+        this._updateTileSprite(x, y);
+        const itemName = getItem(item)?.name || item;
+        this.hud?.showMessage?.(`📦 Mengambil ${itemName} dari Conveyor.`, 1600);
+        return;
+      } else {
+        const activeItem = this.hotbar?.getActiveItem?.();
+        if (activeItem && isWarehouseStorable(activeItem)) {
+          const activeSlot = this.hotbar.activeSlot;
+          if (this.hotbar.slotQuantities[activeSlot] > 0) {
+            this.hotbar.useItem(activeSlot, 1);
+            tile.conveyorItem = activeItem;
+            this._updateTileSprite(x, y);
+            const itemName = getItem(activeItem)?.name || activeItem;
+            this.hud?.showMessage?.(`📦 Menaruh ${itemName} ke Conveyor.`, 1600);
+            return;
+          }
+        } else {
+          this.hud?.showMessage?.('Pilih barang di hotbar untuk diletakkan di conveyor.', 1500);
+          return;
+        }
+      }
+    } else if (tile.isOre && tile.oreType !== 'depleted') {
+      this._doMine(x, y, tile);
+    } else if (tile.hasPlant) {
       this._doHarvest(x, y, tile);
     } else if (tile.isTilled && tile.isWatered) {
       if (this.hotbar.getActivePlantType()) {
@@ -916,6 +1194,96 @@ export class GameScene extends Phaser.Scene {
       this._doWater(x, y, tile);
     } else {
       this._doTill(x, y, tile);
+    }
+  }
+
+  _doMine(x, y, tile) {
+    if (!tile || (!tile.isOre && tile.oreType !== 'depleted')) {
+      this.hud?.showMessage?.('Tidak ada batu tambang di sini.', 1000);
+      return;
+    }
+
+    if (tile.oreType === 'depleted') {
+      this.hud?.showMessage?.('Batu tambang ini habis, menunggu respawn...', 1500);
+      return;
+    }
+
+    const activeItem = this.hotbar?.getActiveItem?.();
+    const hasPickaxe = activeItem === 'pickaxe' || this.inventorySystem?.hasItem?.('pickaxe', 1);
+    const damage = hasPickaxe ? 2 : 1;
+
+    // Check inventory space for mined primary item
+    const oreType = tile.oreType;
+    const primaryDrop = oreType === 'stone' ? 'stone' : (oreType === 'coal' ? 'coal' : `${oreType}_ore`);
+    if (this.inventorySystem && !this.inventorySystem.hasSpaceFor(primaryDrop, 1)) {
+      this.hud?.showMessage?.('Tas penuh! Sediakan ruang kosong untuk menambang.', 2000);
+      return;
+    }
+
+    // Hit feedback: particles & camera shake
+    this._emitDirtParticles(x, y);
+    if (this.cameras?.main) {
+      this.cameras.main.shake(40, 0.002);
+    }
+
+    tile.oreCurrentDurability -= damage;
+
+    if (tile.oreCurrentDurability <= 0) {
+      // Node depleted! Determine drops
+      const drops = [];
+      if (oreType === 'stone') {
+        const count = Phaser.Math ? Phaser.Math.Between(2, 3) : 2;
+        drops.push({ id: 'stone', count });
+      } else if (oreType === 'coal') {
+        const count = Phaser.Math ? Phaser.Math.Between(1, 2) : 1;
+        drops.push({ id: 'coal', count });
+        drops.push({ id: 'stone', count: 1 });
+      } else if (oreType === 'copper') {
+        const count = Phaser.Math ? Phaser.Math.Between(1, 2) : 1;
+        drops.push({ id: 'copper_ore', count });
+        drops.push({ id: 'stone', count: 1 });
+      } else if (oreType === 'iron') {
+        const count = Phaser.Math ? Phaser.Math.Between(1, 2) : 1;
+        drops.push({ id: 'iron_ore', count });
+        drops.push({ id: 'stone', count: 1 });
+      } else if (oreType === 'gold') {
+        const count = Phaser.Math ? Phaser.Math.Between(1, 2) : 1;
+        drops.push({ id: 'gold_ore', count });
+        drops.push({ id: 'stone', count: 1 });
+      }
+
+      // Add drops to inventory
+      for (const drop of drops) {
+        this.inventorySystem?.addItem(drop.id, drop.count);
+      }
+
+      tile.oreType = 'depleted';
+      tile.isOre = false;
+      tile.oreRespawnTimestamp = Date.now() + 30000;
+
+      if (Array.isArray(this.minedOres)) {
+        this.minedOres.push({
+          x,
+          y,
+          type: oreType,
+          respawnTime: 30000,
+        });
+      }
+
+      this._updateTileSprite(x, y);
+      this._emitHarvestParticles(x, y);
+
+      if (this.profileSystem) {
+        this.profileSystem.addXp(12);
+      }
+      this.events?.emit?.('xp-gain', { x, y, amount: 12 });
+
+      const labelMap = { stone: 'Stone', coal: 'Coal', copper: 'Copper Ore', iron: 'Iron Ore', gold: 'Gold Ore' };
+      const dropLabel = labelMap[oreType] || oreType;
+      this.hud?.showMessage?.(`⛏️ Berhasil menambang ${dropLabel}!`, 1800);
+      this.saveSystem?.saveLocal?.();
+    } else {
+      this.hud?.showMessage?.(`Menambang... (${tile.oreCurrentDurability}/${tile.oreMaxDurability})`, 600);
     }
   }
 
@@ -947,10 +1315,10 @@ export class GameScene extends Phaser.Scene {
 
       if (inRange) {
         // Cyan/green visual hint when within 2-tile radius interaction range
-        this.selectionCursor.setTint(0x00ffcc);
+        this.selectionCursor.clearTint();
       } else {
         // Red visual hint when out of range
-        this.selectionCursor.setTint(0xff3333);
+        this.selectionCursor.clearTint();
       }
 
       // Hover glow highlight for buildings, gates, machines, fences, ores
@@ -967,17 +1335,14 @@ export class GameScene extends Phaser.Scene {
       const isMarket = this._isTileInMarketZone(this.cursorTileX, this.cursorTileY);
 
       if (isMarket && this.marketSprite) {
-        this.marketSprite.setTint(0xffe082); // soft gold glow for shop
+        this.marketSprite.clearTint(); // soft gold glow for shop
       } else if (tile) {
         const sprite = this.tileSprites[this.cursorTileY]?.[this.cursorTileX];
-        const isFence = (this.cursorTileX === 0 || this.cursorTileX === GRID_COLS - 1 || 
-                         this.cursorTileY === 0 || this.cursorTileY === GRID_ROWS - 1 ||
-                         (this.cursorTileX === 19 && this.cursorTileY >= 0 && this.cursorTileY <= 19 && this.cursorTileY !== 10) ||
-                         (this.cursorTileY === 19 && this.cursorTileX >= 0 && this.cursorTileX <= 39 && this.cursorTileX !== 10) ||
-                         (this.cursorTileX === 39 && this.cursorTileY >= 0 && this.cursorTileY <= 39 && this.cursorTileY !== 20));
+        const isFence = ZoneMap.isFenceTile(this.cursorTileX, this.cursorTileY, GRID_COLS, GRID_ROWS);
+
 
         if (sprite && (tile.isMachine || tile.isOre || tile.isGate || isFence)) {
-          sprite.setTint(0x80deea); // Cyan glow for interactable structures and fences
+          sprite.clearTint();
           this.lastHoveredTileSprite = sprite;
         }
       }
@@ -1004,69 +1369,30 @@ export class GameScene extends Phaser.Scene {
   //  PARTICLE EFFECTS
   // ══════════════════════════════════════
 
-  _emitGrowthParticles(x, y) {
-    const px = x * TILE_SIZE + TILE_SIZE / 2;
-    const py = y * TILE_SIZE + TILE_SIZE / 2;
-    for (let i = 0; i < 5; i++) {
-      const p = this.add.image(px + Phaser.Math.Between(-8, 8), py + Phaser.Math.Between(-8, 8), 'particle');
-      p.setTint(0x76ff03).setDepth(25).setScale(0.5);
-      this.tweens.add({ targets: p, y: p.y - 20, alpha: 0, scale: 0, duration: 600, ease: 'Power2', onComplete: () => p.destroy() });
+  _emitPixelParticles(x,y,color,count=5) {
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    for(let i=0;i<count;i++){
+      const p=this.add.rectangle(x*TILE_SIZE+16+Phaser.Math.Between(-8,8),y*TILE_SIZE+16,2,2,color).setDepth(25);
+      this.time.addEvent({delay:90,repeat:3,callback:()=>{p.x+=i%2?1:-1;p.y-=2;}});
+      this.time.delayedCall(380,()=>p.destroy());
     }
   }
-
-  _emitFruitParticles(x, y) {
-    const px = x * TILE_SIZE + TILE_SIZE / 2;
-    const py = y * TILE_SIZE + TILE_SIZE / 2;
-    for (let i = 0; i < 8; i++) {
-      const p = this.add.image(px + Phaser.Math.Between(-10, 10), py + Phaser.Math.Between(-10, 10), 'particle');
-      p.setTint(0xffd700).setDepth(25);
-      this.tweens.add({ targets: p, y: p.y - 25, alpha: 0, duration: 800, ease: 'Power2', delay: i * 50, onComplete: () => p.destroy() });
-    }
-  }
-
-  _emitHarvestParticles(x, y) {
-    const px = x * TILE_SIZE + TILE_SIZE / 2;
-    const py = y * TILE_SIZE + TILE_SIZE / 2;
-    for (let i = 0; i < 12; i++) {
-      const p = this.add.image(px + Phaser.Math.Between(-6, 6), py + Phaser.Math.Between(-6, 6), 'particle');
-      p.setTint(Phaser.Math.RND.pick([0xffd700, 0xff9800, 0x76ff03])).setDepth(25);
-      const angle = (i / 12) * Math.PI * 2;
-      const dist = Phaser.Math.Between(15, 30);
-      this.tweens.add({ targets: p, x: px + Math.cos(angle) * dist, y: py + Math.sin(angle) * dist - 10, alpha: 0, scale: 0, duration: 500, ease: 'Power2', delay: i * 30, onComplete: () => p.destroy() });
-    }
-  }
-
-  _emitWaterParticles(x, y) {
-    const px = x * TILE_SIZE + TILE_SIZE / 2;
-    const py = y * TILE_SIZE + TILE_SIZE / 2;
-    for (let i = 0; i < 6; i++) {
-      const texKey = this.textures.exists('particle_water') ? 'particle_water' : 'particle';
-      const p = this.add.image(px + Phaser.Math.Between(-10, 10), py - 10, texKey);
-      p.setTint(0x4fc3f7).setDepth(25);
-      this.tweens.add({ targets: p, y: py + Phaser.Math.Between(0, 10), alpha: 0, duration: 400, ease: 'Power1', delay: i * 60, onComplete: () => p.destroy() });
-    }
-  }
-
-  _emitDirtParticles(x, y) {
-    const px = x * TILE_SIZE + TILE_SIZE / 2;
-    const py = y * TILE_SIZE + TILE_SIZE / 2;
-    for (let i = 0; i < 6; i++) {
-      const p = this.add.image(px + Phaser.Math.Between(-6, 6), py + Phaser.Math.Between(-2, 4), 'particle');
-      p.setTint(0x8B6914).setDepth(25);
-      this.tweens.add({ targets: p, y: p.y - Phaser.Math.Between(8, 20), x: p.x + Phaser.Math.Between(-10, 10), alpha: 0, duration: 400, ease: 'Power2', delay: i * 40, onComplete: () => p.destroy() });
-    }
-  }
+  _emitGrowthParticles(x,y){this._emitPixelParticles(x,y,0xa4b18b);}
+  _emitFruitParticles(x,y){this._emitPixelParticles(x,y,0xe9bf62);}
+  _emitHarvestParticles(x,y){this._emitPixelParticles(x,y,0xe9bf62,8);}
+  _emitWaterParticles(x,y){this._emitPixelParticles(x,y,0x63d8d1);}
+  _emitDirtParticles(x,y){this._emitPixelParticles(x,y,0x9b794e);}
 
   _showFloatingText(tx, ty, text, color) {
     const px = tx * TILE_SIZE + TILE_SIZE / 2;
     const py = ty * TILE_SIZE + TILE_SIZE / 2;
     const txt = this.add.text(px, py - 10, text, {
       fontFamily: '"Courier New", Courier, monospace',
-      fontSize: '22px',
+      fontSize: '11px',
       color: '#' + color.toString(16).padStart(6, '0'),
       fontWeight: 'bold',
       resolution: 3,
-    }).setOrigin(0.5).setDepth(30).setScale(0.5);
+    }).setOrigin(0.5).setDepth(30);
     this.tweens.add({ targets: txt, y: py - 30, alpha: 0, duration: 1000, onComplete: () => txt.destroy() });
   }
 
@@ -1079,6 +1405,7 @@ export class GameScene extends Phaser.Scene {
       maxCols = 60;
       maxRows = 40;
     }
+    if (this.unlockedZones && this.unlockedZones.zone5) maxRows = 60;
     if (this.cameras && this.cameras.main) {
       this.cameras.main.setBounds(0, 0, maxCols * TILE_SIZE, maxRows * TILE_SIZE);
     }
@@ -1102,6 +1429,28 @@ export class GameScene extends Phaser.Scene {
     const gateInfo = Object.values(GATES).find(g => g.x === x && g.y === y);
     if (!gateInfo) return;
 
+    if (gateInfo.key === 'zone5') {
+      const costs = gateInfo.itemReqs || [];
+      if (!costs.every(({ id, count }) => this.inventorySystem.hasItem(id, count))) {
+        this.hud.showMessage('Jalur Explore membutuhkan 10 stone dan 2 iron ingot.', 4000);
+        return;
+      }
+      const confirmed = (typeof window === 'undefined' || typeof window.confirm !== 'function')
+        ? true
+        : window.confirm('Buka jalur ke Explore Zone dengan 10 stone dan 2 iron ingot?');
+      if (!confirmed) return;
+      costs.forEach(({ id, count }) => this.inventorySystem.removeItem(id, count));
+      tile.isLocked = false;
+      this.unlockedZones.zone5 = true;
+      this._updateTileSprite(x, y);
+      this._updateCameraBounds();
+      this.wildlifeSystem?.ensureCacheVisuals();
+      this.hud.showMessage('Explore Zone (Southern Wilds) terbuka! Tambang batu liar dan peti kuno siap dijelajahi.', 4200);
+      this._emitFruitParticles(x, y);
+      this.saveSystem?.saveLocal();
+      return;
+    }
+
     const keyItemId = `key_${gateInfo.key}`;
     const hasKey = this.inventorySystem.hasItem(keyItemId, 1);
 
@@ -1112,7 +1461,7 @@ export class GameScene extends Phaser.Scene {
         zone4: 'Lab Key'
       };
       const keyName = keyNames[gateInfo.key] || 'Zone Key';
-      this.hud.showMessage(`🔒 Locked! You need the ${keyName} to unlock this gate.\nBuy it at the shop for ${gateInfo.cost}g (Requires Level ${gateInfo.level}).`, 5000);
+      this.hud.showMessage(` Locked! You need the ${keyName} to unlock this gate.\nBuy it at the shop for ${gateInfo.cost}g (Requires Level ${gateInfo.level}).`, 5000);
       return;
     }
 
@@ -1123,7 +1472,9 @@ export class GameScene extends Phaser.Scene {
     };
     const keyName = keyNames[gateInfo.key] || 'Zone Key';
 
-    const confirm = window.confirm(`Clear barrier to unlock ${gateInfo.key.toUpperCase()}?\nThis will consume your ${keyName}.`);
+    const confirm = (typeof window === 'undefined' || typeof window.confirm !== 'function')
+      ? true
+      : window.confirm(`Clear barrier to unlock ${gateInfo.key.toUpperCase()}?\nThis will consume your ${keyName}.`);
     if (confirm) {
       this.inventorySystem.removeItem(keyItemId, 1);
 
@@ -1131,8 +1482,9 @@ export class GameScene extends Phaser.Scene {
       this.unlockedZones[gateInfo.key] = true;
       this._updateTileSprite(x, y);
       this._updateCameraBounds();
+      this.saveSystem?.saveLocal();
 
-      this.hud.showMessage(`🎉 Unlocked ${gateInfo.key.toUpperCase()}! Map expanded!`, 4000);
+      this.hud.showMessage(` Unlocked ${gateInfo.key.toUpperCase()}! Map expanded!`, 4000);
       this._emitFruitParticles(x, y);
     }
   }
@@ -1142,6 +1494,7 @@ export class GameScene extends Phaser.Scene {
     const py = this.player ? this.player.tileY : 5;
     if (px <= 19 && py <= 19) return 'zone1';
     if (px >= 20 && px <= 39 && py <= 19) return 'zone2';
+    if (px <= 39 && py >= 40) return 'zone5';
     if (px <= 39 && py >= 20) return 'zone3';
     return 'zone4';
   }
@@ -1151,7 +1504,8 @@ export class GameScene extends Phaser.Scene {
       zone1: 'Zone 1: Starter Farm',
       zone2: 'Zone 2: Artisan Refineries',
       zone3: 'Zone 3: Mining Cave',
-      zone4: 'Zone 4: Advanced Tech Lab'
+      zone4: 'Zone 4: Advanced Tech Lab',
+      zone5: 'Zone 5: Southern Wilds'
     };
     const displayName = zoneNames[zoneKey] || 'Unknown Area';
 
@@ -1161,19 +1515,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Create container fixed to camera
-    const container = this.add.container(GAME_WIDTH / 2, -50);
+    const container = this.add.container(Math.floor(this.scale.width / 2), -50);
     container.setScrollFactor(0).setDepth(150);
 
     // Banner background panel
     const width = displayName.length * 9 + 40;
-    const bg = this.add.rectangle(0, 0, width, 30, 0x1a1a2e, 0.95);
-    bg.setStrokeStyle(1.5, 0x00ffff, 0.9);
+    const bg = this.add.rectangle(0, 0, width, 30, 0x101a21, 0.95);
+    bg.setStrokeStyle(1.5, 0x63d8d1, 0.9);
 
     // Banner text
     const text = this.add.text(0, 0, displayName, {
       fontFamily: 'JetBrains Mono, monospace',
       fontSize: '12px',
-      color: '#00ffff',
+      color: '#63d8d1',
       fontWeight: 'bold',
       resolution: 4,
     }).setOrigin(0.5);
@@ -1226,17 +1580,58 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // 3. Check facing a locked gate
+    // 3. Check a crafted depot or a wild-fiber pickup.
     const facing = this.player.getFacingTile();
     const tile = this.gridManager.getTile(facing.x, facing.y);
+    const depot = this.buildingSystem?.getWarehouseAdjacentTo(this.player.tileX, this.player.tileY);
+    if (depot) {
+      this._showPromptAt((depot.tileX + depot.tileW / 2) * TILE_SIZE, depot.tileY * TILE_SIZE - 12, '[E] Manage Depot');
+      return;
+    }
+    if (this.wildlifeSystem?.getDropAt(facing.x, facing.y)) {
+      this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, '[E] Collect Wild Fiber');
+      return;
+    }
+    const cache = this.wildlifeSystem?.getCacheAt(facing.x, facing.y);
+    if (cache) {
+      this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, `[E] Buka ${cache.name}`);
+      return;
+    }
+
+    // 4. Check facing a locked gate
     if (tile && tile.isGate && tile.isLocked) {
       this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, '[E] Unlock Gate');
       return;
     }
 
-    // 4. Check facing a machine
+    // 5. Check facing a machine or crafting table
     if (tile && tile.isMachine && tile.machineId) {
-      this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, '[E] Inspect Machine');
+      const promptLabel = tile.machineType === 'crafting_table' ? '[E] Buka Meja Kerja' : '[E] Inspect Machine';
+      this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, promptLabel);
+      return;
+    }
+
+    // 6. Check facing a conveyor belt
+    if (tile && tile.isConveyor) {
+      if (tile.conveyorItem && tile.conveyorItem !== 'none') {
+        const itemName = getItem(tile.conveyorItem)?.name || tile.conveyorItem;
+        this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, `[E] Ambil ${itemName}`);
+        return;
+      } else {
+        const activeItem = this.hotbar?.getActiveItem?.();
+        if (activeItem && isWarehouseStorable(activeItem)) {
+          const itemName = getItem(activeItem)?.name || activeItem;
+          this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, `[SPACE] Taruh ${itemName}`);
+          return;
+        }
+      }
+    }
+
+    // 7. Check facing an ore rock
+    if (tile && tile.isOre && tile.oreType !== 'depleted') {
+      const labelMap = { stone: 'Batu', coal: 'Batu Bara', copper: 'Tembaga', iron: 'Besi', gold: 'Emas' };
+      const name = labelMap[tile.oreType] || tile.oreType;
+      this._showPromptAt(facing.x * TILE_SIZE + TILE_SIZE / 2, facing.y * TILE_SIZE - 12, `[SPACE] Tambang ${name}`);
       return;
     }
 
@@ -1251,10 +1646,10 @@ export class GameScene extends Phaser.Scene {
       this.promptText = this.add.text(x, y, text, {
         fontFamily: 'JetBrains Mono, monospace',
         fontSize: '11px',
-        color: '#ffffff',
-        backgroundColor: '#1a1a2e',
+        color: '#edf0d4',
+        backgroundColor: '#101a21',
         padding: { x: 6, y: 3 },
-        stroke: '#00ffff',
+        stroke: '#63d8d1',
         strokeThickness: 1,
         resolution: 4,
       }).setOrigin(0.5).setDepth(40);
@@ -1290,6 +1685,8 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
+      // An idle session without production is not a script failure.
+      if (!hasEarnings && !data.hasCrash) return;
       const isEfficient = hasEarnings && !data.hasCrash;
       this.triggerWelcomeBack(isEfficient, earnings, data.crashedDrone || 'drone');
     } catch (e) {
@@ -1333,12 +1730,12 @@ export class GameScene extends Phaser.Scene {
     const txt = this.add.text(0, -6, text, {
       fontFamily: 'JetBrains Mono, monospace',
       fontSize: '8px',
-      color: '#ffffff',
-      backgroundColor: '#16213e',
+      color: '#edf0d4',
+      backgroundColor: '#22343c',
       padding: { x: 5, y: 3 },
       resolution: 4
     }).setOrigin(0.5);
-    txt.setStroke('#ff0055', 1);
+    txt.setStroke('#9b794e', 1);
 
     container.add(txt);
     this.speechBubbleContainer = container;
@@ -1367,9 +1764,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (addedToWarehouseCount > 0) {
-      this.hud.showMessage(`📦 Deposited +${addedToWarehouseCount} items into the Warehouse!`, 4000);
+      this.hud.showMessage(` Deposited +${addedToWarehouseCount} items into the Warehouse!`, 4000);
     } else if (addedToBackpackCount > 0) {
-      this.hud.showMessage(`🎒 Added +${addedToBackpackCount} items to Backpack!`, 4000);
+      this.hud.showMessage(` Added +${addedToBackpackCount} items to Backpack!`, 4000);
     }
 
     // Refresh inventory and devices tabs
