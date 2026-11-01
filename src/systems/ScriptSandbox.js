@@ -14,6 +14,7 @@
  */
 
 import Interpreter from 'js-interpreter';
+import Babel from '@babel/standalone';
 import { MAX_EXECUTION_STEPS } from '../config/constants.js';
 
 export default class ScriptSandbox {
@@ -85,6 +86,32 @@ export default class ScriptSandbox {
   }
 
   /**
+   * Transpile modern JavaScript (ES6+ rest parameters, default parameters, arrow functions, etc.)
+   * to ES5 compatible with JS-Interpreter while preserving line numbers.
+   *
+   * @param {string} code
+   * @returns {{ code: string, error: Error|null }}
+   */
+  transformCode(code) {
+    if (!code || typeof code !== 'string') {
+      return { code: '', error: null };
+    }
+    try {
+      const transformFn = Babel?.transform || (Babel?.default && Babel.default.transform);
+      if (typeof transformFn !== 'function') {
+        return { code, error: null };
+      }
+      const res = transformFn(code, {
+        presets: ['env'],
+        retainLines: true,
+      });
+      return { code: res.code || code, error: null };
+    } catch (err) {
+      return { code: null, error: err };
+    }
+  }
+
+  /**
    * Determine the current line number based on the interpreter state stack.
    * @returns {number|null}
    */
@@ -95,8 +122,13 @@ export default class ScriptSandbox {
     // Traverse state stack from top to bottom to find a node with position info
     for (let i = this.interpreter.stateStack.length - 1; i >= 0; i--) {
       const state = this.interpreter.stateStack[i];
-      if (state && state.node && typeof state.node.start === 'number') {
-        return this.getLineNumberFromOffset(this.originalCode, state.node.start);
+      if (state && state.node) {
+        if (state.node.loc?.start?.line) {
+          return state.node.loc.start.line;
+        }
+        if (typeof state.node.start === 'number') {
+          return this.getLineNumberFromOffset(this.originalCode, state.node.start);
+        }
       }
     }
     return null;
@@ -148,11 +180,32 @@ export default class ScriptSandbox {
       this.droneAPI.drone.setStatus('running');
     }
 
+    // ── 2b. Transpile ES6+ (rest parameters, default parameters, arrow functions, etc.) ──
+    const { code: runnableCode, error: transformError } = this.transformCode(code);
+    if (transformError) {
+      this.isRunning = false;
+      const lineNum = transformError.loc?.line || this.getLineNumberFromOffset(code, transformError.pos || 0);
+      const rawMsg = (transformError.message || String(transformError)).replace(/^unknown:\s*/, '');
+      const formattedError = `Line ${lineNum}: Error: ${rawMsg}`;
+
+      this.errors.push(formattedError);
+      if (this.droneAPI.drone) {
+        this.droneAPI.drone.setStatus('error');
+      }
+      if (this.onError) {
+        this.onError(formattedError);
+      }
+      if (this.onComplete) {
+        this.onComplete({ success: false, error: formattedError });
+      }
+      return;
+    }
+
     try {
       const self = this;
 
       // ── 3. Initialize JS-Interpreter ──────────────────────────────
-      this.interpreter = new Interpreter(code, (interpreter, globalObject) => {
+      this.interpreter = new Interpreter(runnableCode, (interpreter, globalObject) => {
         // Expose 'console' object
         const consoleObj = interpreter.createObjectProto(interpreter.OBJECT_PROTO);
         interpreter.setProperty(globalObject, 'console', consoleObj);
@@ -849,9 +902,15 @@ export default class ScriptSandbox {
       return { x: mockTileX + dx, y: mockTileY + dy };
     };
 
+    const { code: runnableCode, error: transformError } = this.transformCode(code);
+    if (transformError) {
+      const rawMsg = (transformError.message || String(transformError)).replace(/^unknown:\s*/, '');
+      return { success: false, error: rawMsg };
+    }
+
     let interp;
     try {
-      interp = new Interpreter(code, (ib, globalObj) => {
+      interp = new Interpreter(runnableCode, (ib, globalObj) => {
         const consoleObj = ib.createObjectProto(ib.OBJECT_PROTO);
         ib.setProperty(globalObj, 'console', consoleObj);
         ib.setProperty(consoleObj, 'log', ib.createNativeFunction(() => {}));

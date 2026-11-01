@@ -103,3 +103,100 @@ test('script assignment and source code survive persistence without mixing scrip
     else delete globalThis.localStorage;
   }
 });
+
+test('ScriptSandbox supports default parameters in functions and arrow functions', () => {
+  const { sandbox } = runtime();
+  const messages = [];
+  let result;
+  sandbox.onLog = msg => messages.push(msg);
+  sandbox.onComplete = res => { result = res; };
+
+  const code = `
+    function greet(name = 'Farmer', times = 2) {
+      for (var i = 0; i < times; i++) {
+        console.log('Hello', name);
+      }
+    }
+    greet();
+    greet('Alex', 1);
+  `;
+
+  sandbox.execute(code);
+  assert.equal(result.success, true);
+  assert.deepEqual(messages, [
+    'Hello Farmer',
+    'Hello Farmer',
+    'Hello Alex',
+  ]);
+});
+
+test('ScriptSandbox supports rest parameters (...args) in functions and arrow functions', () => {
+  const { sandbox } = runtime();
+  const messages = [];
+  let result;
+  sandbox.onLog = msg => messages.push(msg);
+  sandbox.onComplete = res => { result = res; };
+
+  const code = `
+    function logItems(label, ...items) {
+      var joined = '';
+      for (var i = 0; i < items.length; i++) {
+        joined += (i > 0 ? ', ' : '') + items[i];
+      }
+      console.log(label + ' [' + joined + ']');
+    }
+
+    logItems('SEEDS:', 'wheat_seed', 'potato_seed', 'carrot_seed');
+  `;
+
+  sandbox.execute(code);
+  assert.equal(result.success, true);
+  assert.deepEqual(messages, [
+    'SEEDS: [wheat_seed, potato_seed, carrot_seed]',
+  ]);
+});
+
+test('ScriptSandbox supports combined default parameters and rest parameters with arrow functions', () => {
+  const { sandbox } = runtime();
+  const messages = [];
+  let result;
+  sandbox.onLog = msg => messages.push(msg);
+  sandbox.onComplete = res => { result = res; };
+
+  const code = `
+    const harvestSummary = (prefix = 'TOTAL:', ...quantities) => {
+      var total = 0;
+      for (var i = 0; i < quantities.length; i++) {
+        total += quantities[i];
+      }
+      console.log(prefix, total);
+    };
+
+    harvestSummary();
+    harvestSummary('CROPS:', 10, 25, 15);
+  `;
+
+  sandbox.execute(code);
+  assert.equal(result.success, true);
+  assert.deepEqual(messages, [
+    'TOTAL: 0',
+    'CROPS: 50',
+  ]);
+});
+
+test('ScriptSandbox benchmark simulation supports default and rest parameters', () => {
+  const { sandbox } = runtime();
+  const code = `
+    function sweep(direction = 'right', ...actions) {
+      drone.move(direction);
+      for (var i = 0; i < actions.length; i++) {
+        if (actions[i] === 'till') drone.till();
+      }
+    }
+    sweep(undefined, 'till');
+  `;
+
+  const result = sandbox.benchmark(code);
+  assert.equal(result.success, true);
+  assert.ok(result.simulatedDurationMs > 0);
+});

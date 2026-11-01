@@ -93,6 +93,75 @@ export class EditorBridge {
       },
     });
 
+    // Configure JavaScript compiler options to support ESNext (rest parameters, default parameters, etc.)
+    if (monaco.languages?.typescript?.javascriptDefaults) {
+      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        allowNonTsExtensions: true,
+        allowJs: true,
+        checkJs: false,
+        noLib: false,
+        lib: ['esnext', 'dom'],
+      });
+
+      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: false,
+        noSyntaxValidation: false,
+      });
+
+      // Provide drone & mem ambient declarations so Monaco provides intellisense and doesn't flag globals
+      const droneTypeDefs = `
+        interface DroneAPI {
+          move(direction: 'up' | 'down' | 'left' | 'right'): Promise<boolean> | boolean;
+          till(): void;
+          water(): void;
+          plant(crop: string): void;
+          canCrop(): boolean;
+          crop(): boolean;
+          getBatteryLevel(): number;
+          hasPower(): boolean;
+          checkFrontItem(): string;
+          checkNode(): string;
+          checkGround(): string;
+          collect(): void;
+          wait(seconds: number): void;
+          getDrones(): Array<{ id: string; x: number; y: number; status: string }>;
+          getDronePosition(droneId: string): { x: number; y: number } | null;
+          transferTo(targetDroneId: string, itemId: string, amount: number): boolean;
+          transferToPlayer(): void;
+          transferToWarehouse(itemId?: string, amount?: number): void;
+          retrieveFromWarehouse(itemId?: string, amount?: number): void;
+          depositToMachine(machineId: string, itemId: string, qty?: number): void;
+          retrieveFromMachine(machineId: string): void;
+          sell(): void;
+          setRoutingFilter(direction: 'up' | 'down' | 'left' | 'right', filterType: string): boolean;
+          clearRoutingFilter(direction: 'up' | 'down' | 'left' | 'right'): boolean;
+          getRoutingFilters(): Record<string, string>;
+          inspectTile(x: number, y: number): any;
+        }
+        declare const drone: DroneAPI;
+        declare const mem: {
+          get(key: string): any;
+          set(key: string, val: any): void;
+          has(key: string): boolean;
+          delete(key: string): boolean;
+          clear(): void;
+        };
+      `;
+      try {
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(droneTypeDefs, 'ts:drone-api.d.ts');
+      } catch {}
+    }
+
+    if (monaco.languages?.typescript?.typescriptDefaults) {
+      monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        allowNonTsExtensions: true,
+        allowJs: true,
+        checkJs: false,
+      });
+    }
+
     // Create editor instance
     this.editor = monaco.editor.create(container, {
       value: this._getActiveCode(),
@@ -281,6 +350,30 @@ export class EditorBridge {
             insertText: "for (var i = 0; i < ${1:5}; i++) {\n  drone.move('${2|right,down|}');\n  drone.till();\n  drone.water();\n  drone.plant('${3|wheat,potato|}');\n}",
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
             documentation: 'Plant a row of crops using a for loop.',
+            range,
+          },
+          {
+            label: 'function (default parameters)',
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: "function ${1:plantRow}(crop = '${2:wheat}', times = ${3:3}) {\n  for (var i = 0; i < times; i++) {\n    drone.move('${4|right,down|}');\n    drone.till();\n    drone.water();\n    drone.plant(crop);\n  }\n}",
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            documentation: 'Define a function using default parameter values.',
+            range,
+          },
+          {
+            label: 'function (rest parameters ...args)',
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: "function ${1:harvestMany}(tag = 'Harvest:', ...crops) {\n  for (var i = 0; i < crops.length; i++) {\n    console.log(tag, crops[i]);\n  }\n}",
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            documentation: 'Define a function accepting variable arguments via rest parameters (...args).',
+            range,
+          },
+          {
+            label: 'arrow function (default & rest params)',
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: "const ${1:processAll} = (header = 'DRONE', ...items) => {\n  console.log(header, items.join(', '));\n};",
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            documentation: 'Arrow function supporting default and rest parameters.',
             range,
           },
         ];
