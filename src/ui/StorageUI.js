@@ -332,6 +332,7 @@ export default class StorageUI {
       document.body.classList.add('storage-open');
     }
     this.render();
+    this.scene?.tutorialSystem?.onWarehouseOpened();
     if (typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(() => this.root.querySelector('[data-storage-close]')?.focus({ preventScroll: true }));
     } else if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {

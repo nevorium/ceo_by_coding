@@ -396,6 +396,7 @@ export class EditorBridge {
 
         drone.setStatus('running');
         sandbox.execute(code);
+        this.scene?.tutorialSystem?.onDroneStarted();
         this._updateControlsUI();
         this._renderDevicesTab();
         this.updateProductionDashboard();

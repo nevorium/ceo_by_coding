@@ -97,6 +97,7 @@ export default class SaveSystem {
       buildings,
       wildlife,
       specialBuyer,
+      tutorial: this.scene.tutorialSystem ? this.scene.tutorialSystem.getSaveState() : null,
       operations: this.scene.operationsSystem?.getSaveState(),
       warehouse: this.scene.warehouse?.getSlots ? this.scene.warehouse.getSlots() : this.scene.warehouse?.getAll(),
       warehouseSlotCapacity: this.scene.warehouse?.getSlotCapacity ? this.scene.warehouse.getSlotCapacity() : 24,
@@ -381,6 +382,11 @@ export default class SaveSystem {
       } else {
         this.scene._destroySpecialBuyerNPC();
       }
+    }
+
+    // 12. Restore or skip RPG Tutorial for returning players
+    if (this.scene.tutorialSystem) {
+      this.scene.tutorialSystem.loadSaveState(data.tutorial, data);
     }
 
     // Optional fields keep existing version-1 saves compatible.

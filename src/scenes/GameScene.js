@@ -41,6 +41,7 @@ import BuildingSystem from '../systems/BuildingSystem.js';
 import WildlifeSystem from '../systems/WildlifeSystem.js';
 import StorageUI from '../ui/StorageUI.js';
 import DragManager from '../systems/DragManager.js';
+import TutorialSystem from '../systems/TutorialSystem.js';
 import { getItem } from '../data/items.js';
 import { isWarehouseStorable } from '../data/buildings.js';
 
@@ -98,6 +99,7 @@ export class GameScene extends Phaser.Scene {
     this.warehouse = new Warehouse(this, 10, 2, 2, 2);
     this.buildingSystem = new BuildingSystem(this);
     this.wildlifeSystem = new WildlifeSystem(this);
+    this.tutorialSystem = new TutorialSystem(this);
     this.operationsSystem = new OperationsSystem(
       this.inventorySystem, this.economySystem, this.profileSystem,
       () => this.unlockedZones, this.warehouse,
@@ -207,6 +209,14 @@ export class GameScene extends Phaser.Scene {
         this.inventorySystem.addItem('crafting_table_kit', 1);
       }
     }
+
+    // ── RPG Tutorial Start (New Players Only) ──
+    let rawSave = null;
+    try {
+      const stored = localStorage.getItem('ceoByCode_savefile');
+      if (stored) rawSave = JSON.parse(stored);
+    } catch {}
+    this.tutorialSystem.startIfEligible(rawSave);
 
     this.operationsUI = new OperationsUI(this);
     // ── Setup Conveyor Belt Ticker ──
@@ -392,6 +402,7 @@ export class GameScene extends Phaser.Scene {
     // Update player
     if (this.player) {
       this.player.update(time, delta);
+      this.tutorialSystem?.onPlayerMove(this.player.tileX, this.player.tileY);
     }
 
     // Update all drones
@@ -970,6 +981,7 @@ export class GameScene extends Phaser.Scene {
       } else {
         this.hud.showMessage('Warehouse: Go to Devices tab in Code panel to manage storage!', 4000);
       }
+      this.tutorialSystem?.onWarehouseOpened();
       return;
     }
 
@@ -1058,6 +1070,7 @@ export class GameScene extends Phaser.Scene {
       this._updateTileSprite(x, y);
       this.hud.showMessage('Tilled the soil!', 1000);
       this._emitDirtParticles(x, y);
+      this.tutorialSystem?.onTileTilled(x, y);
     } else {
       this.hud.showMessage('Cannot till here.', 1000);
     }
@@ -1069,6 +1082,7 @@ export class GameScene extends Phaser.Scene {
       this._updateTileSprite(x, y);
       this.hud.showMessage('Watered!', 1000);
       this._emitWaterParticles(x, y);
+      this.tutorialSystem?.onTileWatered(x, y);
     } else {
       this.hud.showMessage('Cannot water here.', 1000);
     }
@@ -1096,6 +1110,7 @@ export class GameScene extends Phaser.Scene {
       this._updateTileSprite(x, y);
       this._updatePlantSprite(x, y);
       this.hud.showMessage(`Planted ${PLANT_TYPES[seed]?.name || seed}!`, 1000);
+      this.tutorialSystem?.onSeedPlanted(x, y, seed);
     } else {
       this.hud.showMessage('Cannot plant here. Need tilled & watered soil.', 1500);
     }
