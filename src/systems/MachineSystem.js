@@ -114,6 +114,15 @@ export const RECIPES = {
       category: 'Peralatan',
       description: 'Penyiram air tanah garapan perkebunan.',
     },
+    {
+      id: 'teleporter_kit',
+      inputs: { iron_ingot: 8, gold_ingot: 3, chip: 2 },
+      output: { id: 'teleporter_kit', count: 1 },
+      timeMs: 15000,
+      name: 'Assemble Teleporter Kit',
+      category: 'Bangunan',
+      description: 'Pad teleport untuk berpindah cepat antar-teleporter.',
+    },
   ],
   mill: {
     inputs: { wheat: 2 },

@@ -91,16 +91,17 @@ function wildlife(type) {
   }
   return b;
 }
-export const ICON_IDS=['crate','coin','seed','plow','watering_can','wheat_seed','potato_seed','apple_tree_seed','cactus_seed','wheat','potato','apple_tree','cactus','coal','copper_ore','iron_ore','gold_ore','copper_ingot','iron_ingot','gold_ingot','flour','bread','apple_juice','apple_jam','potato_starch','chips','wire','gear','chip','stone','wild_fiber','raw_meat','leather','bone','crafting_table_kit','warehouse_depot_kit','warehouse_kit','smelter_kit','mill_kit','assembler_kit','press_kit','boiler_kit','conveyor_kit','module_farming','module_supplier','module_seller','module_mining','module_bigger_seller','module_super_carrier','module_advanced_farming','module_speed_booster','key_zone2','key_zone3','key_zone4','drone','journal','menu','phone','pickaxe'];
+export const ICON_IDS=['crate','coin','seed','plow','watering_can','wheat_seed','potato_seed','apple_tree_seed','cactus_seed','wheat','potato','apple_tree','cactus','coal','copper_ore','iron_ore','gold_ore','copper_ingot','iron_ingot','gold_ingot','flour','bread','apple_juice','apple_jam','potato_starch','chips','wire','gear','chip','stone','wild_fiber','raw_meat','leather','bone','crafting_table_kit','warehouse_depot_kit','warehouse_kit','smelter_kit','mill_kit','assembler_kit','press_kit','boiler_kit','conveyor_kit','module_farming','module_supplier','module_seller','module_mining','module_bigger_seller','module_super_carrier','module_advanced_farming','module_speed_booster','key_zone2','key_zone3','key_zone4','drone','journal','menu','phone','pickaxe','teleporter_kit'];
 function icon(id) {
   const b=new PixelBitmap(16,16);let base=P.silver,highlight=P.cream,detail=P.steel;
   if(/wheat|bread|chips|coin|gold|seed|key/.test(id)){base=P.amber;highlight=P.sand;detail=P.earth;}
   if(/apple|cactus|farming|fiber/.test(id)){base=P.grass;highlight=P.sage;detail=P.forest;}
-  if(/juice|jam|watering|chip|phone|speed/.test(id)){base=P.cyan;highlight=P.silver;detail=P.steel;}
+  if(/juice|jam|watering|chip|phone|speed|teleporter/.test(id)){base=P.cyan;highlight=P.silver;detail=P.steel;}
   if(id==='coin'){b.rect(4,2,8,12,P.ink);b.rect(2,4,12,8,P.ink);b.rect(4,3,8,10,base);b.rect(3,5,10,6,base);b.rect(5,4,2,7,highlight);b.rect(9,5,2,6,detail);}
   else if(id==='plow'){b.line(3,13,11,5,detail);b.line(4,13,12,5,detail);b.box(3,2,10,4,base);b.rect(4,2,8,1,highlight);}
   else if(id==='pickaxe'){b.line(3,13,12,4,detail);b.line(4,13,13,4,detail);b.box(8,2,6,4,base);b.rect(9,2,4,1,highlight);b.rect(13,3,2,4,base);b.rect(7,5,4,2,base);}
   else if(id==='watering_can'){b.box(3,6,8,7,base);b.box(5,2,6,5,detail);b.rect(6,3,4,3,P.ink);b.line(10,9,14,5,highlight);b.rect(13,4,2,2,base);}
+  else if(id==='teleporter_kit'){b.box(3,10,10,4,detail);b.box(4,2,8,9,base);b.rect(6,4,4,5,P.ink);b.rect(7,6,2,2,highlight);}
   else if(id==='wheat'||id==='wheat_seed'){b.rect(7,2,1,12,detail);for(let y=2;y<10;y+=3){b.rect(4,y,3,2,base);b.rect(8,y+1,3,2,highlight);}}
   else if(id.endsWith('_seed')||id==='seed'||/flour|starch/.test(id)){b.box(4,5,9,9,base);b.rect(5,2,7,3,detail);b.rect(7,7,2,5,highlight);}
   else if(/ore|coal|stone|potato|apple_tree|cactus/.test(id)){b.rect(4,3,8,10,P.ink);b.rect(2,5,12,6,P.ink);b.rect(4,4,8,8,base);b.rect(3,6,10,4,base);b.rect(5,5,3,2,highlight);b.rect(9,9,2,2,detail);}
@@ -116,11 +117,24 @@ function icon(id) {
   else if(id==='menu'){for(let y=3;y<=11;y+=4)b.box(2,y,12,3,base);}
   else{b.box(3,3,10,11,base);b.rect(4,4,8,2,highlight);b.box(6,7,4,4,detail);b.rect(4,12,8,1,detail);}return b;
 }
+function teleporterPad(frame = 0) {
+  const b = new PixelBitmap(32, 32);
+  const ring = frame ? P.cream : P.cyan, core = frame ? P.cyan : P.cream;
+  b.rect(4, 24, 24, 5, P.ink);
+  b.rect(3, 18, 26, 8, P.ink);
+  b.rect(4, 19, 24, 6, P.panel);
+  b.rect(9, 6, 14, 14, P.ink);
+  b.rect(10, 7, 12, 12, ring);
+  b.rect(12, 9, 8, 8, P.ink);
+  b.rect(14, 11, 4, 4, core);
+  return b;
+}
 export function buildPixelAssets() {
   const assets=new Map(),add=(key,bitmap,frames)=>assets.set(key,{...bitmap,frames});
   const sheet=(key,frames)=>{const b=new PixelBitmap(frames[0].width*frames.length,frames[0].height);frames.forEach((f,i)=>b.blit(f,i*f.width,0));add(key,b,frames.map((f,i)=>({name:i,x:i*f.width,y:0,width:f.width,height:f.height})));};
   sheet('player',Array.from({length:16},(_,i)=>person(Math.floor(i/4),i%4)));
   sheet('eli_npc',Array.from({length:4},(_,i)=>person(i,0,'eli')));sheet('buyer_npc',Array.from({length:4},(_,i)=>person(i,0,'buyer')));
+  sheet('building_teleporter', [teleporterPad(0), teleporterPad(1)]);
   for(const type of ['grass','tilled','watered','fence','path']){
     const b=new PixelBitmap(32,32),base=type==='watered'?P.panel:type==='tilled'?P.earth:type==='path'?P.sand:P.grass;b.rect(0,0,32,32,base);
     if(['tilled','watered'].includes(type))for(let y=3;y<32;y+=6){b.rect(2,y,28,1,type==='watered'?P.ink:P.forest);b.rect(4+y%3*4,y+1,3,1,type==='watered'?P.steel:P.sand);}

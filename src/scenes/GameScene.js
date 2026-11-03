@@ -45,6 +45,7 @@ import DragManager from '../systems/DragManager.js';
 import TutorialSystem from '../systems/TutorialSystem.js';
 import NavigationSystem from '../systems/NavigationSystem.js';
 import NavigationHUD from '../ui/NavigationHUD.js';
+import TeleportSystem from '../systems/TeleportSystem.js';
 import { getItem } from '../data/items.js';
 import { isWarehouseStorable } from '../data/buildings.js';
 
@@ -101,6 +102,7 @@ export class GameScene extends Phaser.Scene {
     // ── Create Warehouse ──
     this.warehouse = new Warehouse(this, 10, 2, 2, 2);
     this.buildingSystem = new BuildingSystem(this);
+    this.teleportSystem = new TeleportSystem(this);
     this.wildlifeSystem = new WildlifeSystem(this);
     this.tutorialSystem = new TutorialSystem(this);
     this.operationsSystem = new OperationsSystem(

@@ -549,6 +549,17 @@ export const ITEMS = {
     stackMax: 99,
     stackMaxWarehouse: 999,
   },
+  teleporter_kit: {
+    id: 'teleporter_kit',
+    name: 'Teleporter Kit',
+    emoji: '',
+    desc: 'Pad teleport. Pasang minimal dua untuk berpindah cepat antar lokasi.',
+    rarity: 'Rare',
+    category: 'Bangunan',
+    sector: 'Bangunan',
+    stackMax: 99,
+    stackMaxWarehouse: 999,
+  },
   wild_fiber: {
     id: 'wild_fiber',
     name: 'Wild Fiber',

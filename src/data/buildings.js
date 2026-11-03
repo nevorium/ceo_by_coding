@@ -75,6 +75,14 @@ export const BUILDING_DEFINITIONS = Object.freeze({
     conveyor: true,
     description: 'Memindahkan satu item per detik.',
   },
+  teleporter: {
+    kitId: 'teleporter_kit',
+    label: 'Teleporter',
+    width: 1,
+    height: 1,
+    teleporter: true,
+    description: 'Pad teleport. Terhubung ke teleporter lain di zona yang sudah terbuka.',
+  },
 });
 
 export const BUILDING_KIT_IDS = Object.freeze(Object.fromEntries(

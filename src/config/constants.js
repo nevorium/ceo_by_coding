@@ -75,3 +75,9 @@ export const ZONE_LABELS = Object.freeze({
 });
 
 export const UNKNOWN_ZONE_LABEL = 'Wilayah Tak Dikenal';
+
+export const TELEPORT = Object.freeze({
+  MAX_PADS: 8,           // Batas maksimal jaringan teleporter
+  COOLDOWN_MS: 3000,     // Jeda cooldown setelah berpindah (3 detik)
+  FEE_PER_10_TILES: 0,   // Biaya teleportasi (0 = gratis)
+});

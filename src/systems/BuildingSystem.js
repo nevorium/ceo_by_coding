@@ -1,18 +1,23 @@
 import UniversalEventEmitter from '../utils/EventEmitter.js';
 import Warehouse from '../entities/Warehouse.js';
-import { TILE_SIZE } from '../config/constants.js';
+import Teleporter from '../entities/Teleporter.js';
+import { TILE_SIZE, TELEPORT } from '../config/constants.js';
 import { BUILDING_DEFINITIONS, BUILDING_KITS, buildingTypeFromKit } from '../data/buildings.js';
 import { getItem } from '../data/items.js';
+import ZoneMap from './ZoneMap.js';
+import { isZoneRevealed } from './NavigationSystem.js';
+import { findArrivalTile } from './TeleportSystem.js';
 
 /**
  * Owns player-built world objects. Manages placement and dismantling of
- * crafting tables, warehouse depots, and conveyors.
+ * crafting tables, warehouse depots, conveyors, and teleporters.
  */
 export default class BuildingSystem {
   constructor(scene) {
     this.scene = scene;
     this.buildings = new Map();
     this.depots = new Map();
+    this.pads = new Map();
     this.serial = 0;
     this.isOpen = false;
     this.mode = 'place'; // 'place' | 'dismantle'
@@ -204,15 +209,26 @@ export default class BuildingSystem {
     this._updatePreview(pointer);
     const data = this.preview?.getData();
     if (!data || !data.valid) {
+      const type = buildingTypeFromKit(this.activeKitId);
       const point = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
       const x = Math.floor(point.x / TILE_SIZE);
       const y = Math.floor(point.y / TILE_SIZE);
-      const existing = this.getBuildingAt(x, y);
-      if (existing) {
-        const def = BUILDING_DEFINITIONS[existing.type];
-        this.scene.hud?.showMessage(`Petak sudah terisi ${def?.label || 'bangunan'}. Tekan [X] untuk mode Bongkar.`, 2200);
+
+      const explanation = type ? this.explainPlacement(type, x, y) : { ok: false, reason: 'unbuildable' };
+      if (explanation.reason === 'zone_unavailable') {
+        this.scene.hud?.showMessage('Teleporter hanya bisa dipasang di zona yang sudah terbuka.', 2400);
+      } else if (explanation.reason === 'limit') {
+        this.scene.hud?.showMessage(`Batas teleporter tercapai (${TELEPORT.MAX_PADS}). Bongkar satu dulu.`, 2400);
+      } else if (explanation.reason === 'no_arrival') {
+        this.scene.hud?.showMessage('Harus ada petak kosong di sebelah teleporter buat tempat tiba.', 2400);
       } else {
-        this.scene.hud?.showMessage('Bangunan tidak dapat dipasang di petak itu.', 1800);
+        const existing = this.getBuildingAt(x, y);
+        if (existing) {
+          const def = BUILDING_DEFINITIONS[existing.type];
+          this.scene.hud?.showMessage(`Petak sudah terisi ${def?.label || 'bangunan'}. Tekan [X] untuk mode Bongkar.`, 2200);
+        } else {
+          this.scene.hud?.showMessage('Bangunan tidak dapat dipasang di petak itu.', 1800);
+        }
       }
       return false;
     }
@@ -245,27 +261,49 @@ export default class BuildingSystem {
     return this.dismantleBuilding(data.building.id);
   }
 
-  canPlace(type, x, y) {
+  explainPlacement(type, x, y, { restoring = false } = {}) {
     const definition = BUILDING_DEFINITIONS[type];
-    if (!definition) return false;
+    if (!definition) return { ok: false, reason: 'unknown_type' };
+
     for (let dy = 0; dy < definition.height; dy += 1) {
       for (let dx = 0; dx < definition.width; dx += 1) {
         const tx = x + dx;
         const ty = y + dy;
-        if (!this.scene.gridManager.isBuildable(tx, ty)) return false;
+        if (!this.scene?.gridManager?.isBuildable(tx, ty)) {
+          return { ok: false, reason: 'unbuildable' };
+        }
         // Cannot place on top of player
-        if (this.scene.player && this.scene.player.tileX === tx && this.scene.player.tileY === ty) {
-          return false;
+        if (this.scene?.player && this.scene.player.tileX === tx && this.scene.player.tileY === ty) {
+          return { ok: false, reason: 'player_blocked' };
         }
       }
     }
-    return true;
+
+    if (definition.teleporter && !restoring) {
+      const zone = ZoneMap.getZoneAt(x, y);
+      if (!zone || !isZoneRevealed(this.scene?.unlockedZones, zone)) {
+        return { ok: false, reason: 'zone_unavailable' };
+      }
+      if (this.scene?.teleportSystem && this.scene.teleportSystem.getPads().length >= TELEPORT.MAX_PADS) {
+        return { ok: false, reason: 'limit' };
+      }
+      const isFree = this.scene?.teleportSystem?.isFree || ((ax, ay) => this.scene?.gridManager?.isWalkable(ax, ay));
+      if (!findArrivalTile({ x, y }, isFree)) {
+        return { ok: false, reason: 'no_arrival' };
+      }
+    }
+
+    return { ok: true };
   }
 
-  placeFromKit(kitId, x, y, direction = 'right', { consume = true, id = null, persist = true } = {}) {
+  canPlace(type, x, y, opts) {
+    return this.explainPlacement(type, x, y, opts).ok;
+  }
+
+  placeFromKit(kitId, x, y, direction = 'right', { consume = true, id = null, persist = true, meta = null } = {}) {
     const type = buildingTypeFromKit(kitId);
     const definition = BUILDING_DEFINITIONS[type];
-    if (!definition || !this.canPlace(type, x, y)) return false;
+    if (!definition || !this.canPlace(type, x, y, { restoring: !consume })) return false;
     if (consume && !this.scene.inventorySystem.removeItem(kitId, 1)) return false;
 
     const buildingId = id || `${type}_${++this.serial}`;
@@ -292,12 +330,22 @@ export default class BuildingSystem {
       if (!this.scene.warehouse) {
         this.scene.warehouse = depot;
       }
+    } else if (definition.teleporter) {
+      this.scene.gridManager.setBuilding(x, y, buildingId, type);
+      const wanted = meta?.name;
+      const taken = this.scene.teleportSystem?.getPads().some(p => p.id !== buildingId && p.name === wanted);
+      building.name = (wanted && !taken) ? wanted : (this.scene.teleportSystem?.nextName() || `TP-${this.buildings.size}`);
+      const pad = new Teleporter(this.scene, x, y, building.name);
+      this.pads.set(buildingId, pad);
+      if (consume && this.scene.hud) {
+        this.scene.hud.showMessage('Teleporter terpasang. Pasang satu lagi di lokasi lain untuk berpindah.', 3600);
+      }
     }
 
     if (consume && this.scene._emitPixelParticles) {
       this.scene._emitPixelParticles(x, y, 0x63d8d1, 8);
     }
-    if (consume && this.scene.hud) {
+    if (consume && this.scene.hud && !definition.teleporter) {
       this.scene.hud.showMessage(`🔨 ${definition.label} berhasil dipasang!`, 2200);
     }
 
@@ -385,6 +433,12 @@ export default class BuildingSystem {
       }
       this.scene.gridManager.setConveyor(building.x, building.y, null);
       this.scene.updateTileSprite(building.x, building.y);
+    } else if (definition.teleporter) {
+      this.scene.teleporterUI?.closeIfOpenFor?.(building.id);
+      this.pads.get(building.id)?.destroy?.();
+      this.pads.delete(building.id);
+      this.scene.gridManager.setBuilding(building.x, building.y, null, null);
+      this.scene.updateTileSprite?.(building.x, building.y);
     }
 
     // Return building kit to inventory
@@ -432,7 +486,12 @@ export default class BuildingSystem {
       const definition = BUILDING_DEFINITIONS[building.type];
       if (!definition || !Number.isInteger(building.x) || !Number.isInteger(building.y)) continue;
       this.serial = Math.max(this.serial, Number((building.id || '').split('_').at(-1)) || 0);
-      const success = this.placeFromKit(definition.kitId, building.x, building.y, building.direction, { consume: false, id: building.id, persist: false });
+      const success = this.placeFromKit(definition.kitId, building.x, building.y, building.direction, {
+        consume: false,
+        id: building.id,
+        persist: false,
+        meta: { name: building.name },
+      });
       if (success && definition.conveyor && typeof building.conveyorItem === 'string') {
         const tile = this.scene.gridManager.getTile(building.x, building.y);
         tile.conveyorItem = building.conveyorItem;
@@ -461,8 +520,13 @@ export default class BuildingSystem {
       } else if (def.conveyor) {
         this.scene.gridManager?.setConveyor(building.x, building.y, null);
         this.scene.updateTileSprite?.(building.x, building.y);
+      } else if (def.teleporter) {
+        this.scene.gridManager?.setBuilding(building.x, building.y, null, null);
+        this.scene.updateTileSprite?.(building.x, building.y);
       }
     }
+    for (const pad of this.pads.values()) pad.destroy?.();
+    this.pads.clear();
     for (const depot of this.depots.values()) depot.destroy();
     this.depots.clear();
     this.buildings.clear();
