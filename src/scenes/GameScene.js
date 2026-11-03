@@ -44,6 +44,7 @@ import StorageUI from '../ui/StorageUI.js';
 import DragManager from '../systems/DragManager.js';
 import TutorialSystem from '../systems/TutorialSystem.js';
 import NavigationSystem from '../systems/NavigationSystem.js';
+import NavigationHUD from '../ui/NavigationHUD.js';
 import { getItem } from '../data/items.js';
 import { isWarehouseStorable } from '../data/buildings.js';
 
@@ -134,6 +135,7 @@ export class GameScene extends Phaser.Scene {
     this.machineUI = new MachineUI(this, this.machineSystem, this.inventorySystem);
     this.storageUI = new StorageUI(this);
     this.navigationSystem = new NavigationSystem(this);
+    this.navigationHUD = new NavigationHUD(this, this.navigationSystem);
 
     // Buyer NPC sprite field
     this.buyerNPCSprite = null;
