@@ -1388,10 +1388,12 @@
   <div id="game-container">
     <div id="rpg-chrome">
       <div class="game-hud"><span class="hud-kicker">DRONEHARVEST</span><strong id="workspace-zone">Kebun Perintis</strong><div class="hud-resources"><span class="pixel-icon" style="--icon-index:1" aria-hidden="true"></span><span id="workspace-wallet">100g</span><span class="hud-divider">/</span><span id="workspace-fleet">0/1 drone aktif</span></div></div>
-      <nav class="world-actions" aria-label="Menu permainan"><button id="btn-workspace-backpack">Tas</button><button id="btn-build-mode" aria-controls="build-toolbar" aria-pressed="false">Build <kbd>B</kbd></button><button id="btn-journal">Jurnal</button><button id="btn-workspace-phone">Ponsel</button><button id="btn-toggle-editor" aria-controls="editor-panel" aria-expanded="true">[ CODE ]</button></nav>
+      <nav class="world-actions" aria-label="Menu permainan"><button id="btn-workspace-backpack">Tas</button><button id="btn-build-mode" aria-controls="build-toolbar" aria-pressed="false">Build <kbd>B</kbd></button><button id="btn-workspace-map">Peta <kbd>M</kbd></button><button id="btn-journal">Jurnal</button><button id="btn-workspace-phone">Ponsel</button><button id="btn-toggle-editor" aria-controls="editor-panel" aria-expanded="true">[ CODE ]</button></nav>
       <div id="build-toolbar" hidden aria-label="Pilih building kit"></div>
       <div id="nav-cluster" class="nav-cluster">
-        <!-- thumbnail minimap masuk di sini (Sprint N3) -->
+        <button id="nav-minimap-btn" class="nav-minimap-btn" type="button" title="Buka peta dunia (M)" aria-label="Buka peta dunia (M)">
+          <canvas id="nav-minimap-canvas" width="60" height="60"></canvas>
+        </button>
         <button id="nav-coords" class="nav-coords" type="button" title="Klik untuk menyalin koordinat" aria-label="Koordinat pemain: Klik untuk menyalin">
           <span class="nav-z" id="nav-z">Z1</span>
           <span class="nav-sep">·</span><b>X</b> <span id="nav-x">05</span>
@@ -2201,6 +2203,47 @@ if (needsTransport) {
       </div>
     </div>
   </div>
+
+  <!-- Big Map Modal (M) -->
+  <section id="map-popup" class="rpg-panel" hidden aria-labelledby="map-popup-title" role="dialog" aria-modal="true">
+    <header class="rpg-panel-header">
+      <div style="display:flex;align-items:center;gap:8px">
+        <h2 id="map-popup-title" style="margin:0;font:11px/1.7 'Press Start 2P',monospace;color:#e9bf62;">Peta Dunia</h2>
+        <span style="font-size:10px;color:#93a7a1">Tekan <kbd>M</kbd> atau <kbd>Esc</kbd> untuk menutup</span>
+      </div>
+      <button type="button" data-close-panel aria-label="Tutup peta dunia">×</button>
+    </header>
+    <div class="map-popup-body">
+      <div class="map-canvas-container">
+        <canvas id="map-canvas" width="360" height="360" tabindex="0" aria-label="Peta dunia interaktif. Gerakkan kursor atau klik untuk menyalin koordinat"></canvas>
+      </div>
+      <aside class="map-legend-panel">
+        <div class="map-readout-card">
+          <span class="map-readout-label">SOROTAN PETAK</span>
+          <strong id="map-hover-coords">X -- · Y --</strong>
+          <span id="map-hover-zone" class="map-hover-sub">Gerakkan kursor ke peta</span>
+          <span id="map-hover-entity" class="map-hover-entity">-</span>
+          <button type="button" id="btn-map-copy-pos" class="btn-map-action" title="Salin koordinat pemain">Salin Posisiku</button>
+        </div>
+        <div class="map-legend-section">
+          <h3>Legenda</h3>
+          <ul class="map-legend-list">
+            <li><span class="legend-swatch swatch-player"></span> Pemain</li>
+            <li><span class="legend-swatch swatch-drone"></span> Drone</li>
+            <li><span class="legend-swatch swatch-building"></span> Bangunan / HQ</li>
+            <li><span class="legend-swatch swatch-conveyor"></span> Conveyor</li>
+            <li><span class="legend-swatch swatch-ore"></span> Tambang Ore</li>
+            <li><span class="legend-swatch swatch-gate-open"></span> Gerbang Buka</li>
+            <li><span class="legend-swatch swatch-gate-locked"></span> Gerbang Kunci</li>
+            <li><span class="legend-swatch swatch-fence"></span> Pagar</li>
+            <li><span class="legend-swatch swatch-cache"></span> Peti Kuno</li>
+            <li><span class="legend-swatch swatch-teleporter"></span> Teleporter</li>
+            <li><span class="legend-swatch swatch-fog"></span> Terkunci (Fog)</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </section>
 
   <section id="machine-inspector" aria-labelledby="machine-title"><header class="rpg-panel-header"><h2 id="machine-title">Mesin</h2><button data-close-panel>Tutup ×</button></header><div id="machine-content" class="inspector-content"></div></section>
   <section id="market-inspector" aria-labelledby="market-title"><header class="rpg-panel-header"><h2 id="market-title">Pasar kebun</h2><button data-close-panel>Tutup ×</button></header><nav id="market-tabs" class="inspector-tabs"></nav><div id="market-content" class="inspector-content"></div></section>

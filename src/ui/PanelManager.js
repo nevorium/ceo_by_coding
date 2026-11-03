@@ -27,7 +27,7 @@ export default class PanelManager {
     const element = document.getElementById(id);
     element.classList.add('rpg-panel');
     element.setAttribute('role', 'dialog'); element.setAttribute('aria-modal', 'true');
-    if (!element.hasAttribute('aria-labelledby')) element.setAttribute('aria-label', ({ 'backpack-popup':'Tas penjelajah', 'warehouse-popup':'Gudang', 'smartphone-chat':'Ponsel' })[id] || 'Menu');
+    if (!element.hasAttribute('aria-labelledby')) element.setAttribute('aria-label', ({ 'backpack-popup':'Tas penjelajah', 'warehouse-popup':'Gudang', 'smartphone-chat':'Ponsel', 'map-popup':'Peta dunia', 'teleporter-popup':'Teleporter' })[id] || 'Menu');
     element.tabIndex = -1; element.inert = true;
     this.panels.set(id, { element, onClose });
   }

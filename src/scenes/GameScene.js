@@ -348,6 +348,10 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  toggleWorldMap() {
+    this.navigationHUD?.toggleWorldMap();
+  }
+
   spawnNewDrone() {
     const dm = this.deviceManager;
     if (!dm) return null;
@@ -804,6 +808,12 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-X', () => {
       if (this._isDOMInputFocused()) return;
       this.buildingSystem?.toggleDismantle();
+    });
+
+    // M — Toggle World Map
+    this.input.keyboard.on('keydown-M', () => {
+      if (this._isDOMInputFocused()) return;
+      this.toggleWorldMap();
     });
 
     // Mouse click on ground to perform action

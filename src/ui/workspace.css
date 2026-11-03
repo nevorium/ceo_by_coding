@@ -19,6 +19,41 @@ kbd{color:#a4b18b;font:9px monospace;margin-left:5px}.world-actions button:hover
 .nav-coords:hover,.nav-coords:focus-visible{border-color:#63d8d1;color:#63d8d1}
 .nav-coords b{color:#a4b18b;font-weight:400}.nav-sep{color:#42535b;margin:0 4px}
 .nav-coords .nav-z{color:#63d8d1;font-weight:bold}
+.nav-minimap-btn{padding:2px;background:#101a21;border:2px solid #42535b;box-shadow:2px 2px 0 #101a21;cursor:pointer;display:block;min-height:44px;min-width:44px;line-height:0;border-radius:0}
+.nav-minimap-btn:hover,.nav-minimap-btn:focus-visible{border-color:#63d8d1}
+#nav-minimap-canvas{display:block;width:120px;height:120px;image-rendering:pixelated;background:#101a21}
+
+/* Big World Map (#map-popup) */
+#map-popup{width:min(760px,calc(100vw - 32px))!important;max-height:calc(100dvh - 32px)!important}
+.map-popup-body{display:flex;gap:14px;padding:14px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:#42535b #101a21}
+.map-canvas-container{display:flex;align-items:center;justify-content:center;background:#101a21;border:2px solid #42535b;padding:8px;flex:0 0 auto}
+#map-canvas{display:block;image-rendering:pixelated;cursor:crosshair;background:#101a21;outline:none}
+.map-legend-panel{display:flex;flex-direction:column;gap:10px;flex:1;min-width:200px}
+.map-readout-card{background:#101a21;border:2px solid #42535b;padding:12px;display:flex;flex-direction:column;gap:4px}
+.map-readout-label{font-size:8px;font-family:'Press Start 2P',monospace;color:#93a7a1;letter-spacing:0.5px}
+#map-hover-coords{font-size:14px;color:#edf0d4;font-family:'JetBrains Mono',monospace}
+.map-hover-sub{font-size:11px;color:#63d8d1}
+.map-hover-entity{font-size:10px;color:#e9bf62}
+.btn-map-action{margin-top:8px;min-height:36px;padding:6px 10px;background:#22343c;border:1px solid #42535b;color:#edf0d4;font-size:11px;cursor:pointer}
+.btn-map-action:hover{border-color:#63d8d1;color:#63d8d1}
+.map-legend-section{background:#101a21;border:2px solid #42535b;padding:12px;flex:1}
+.map-legend-section h3{margin:0 0 8px;font-size:9px;font-family:'Press Start 2P',monospace;color:#e9bf62}
+.map-legend-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;color:#edf0d4}
+.map-legend-list li{display:flex;align-items:center;gap:6px}
+.legend-swatch{width:10px;height:10px;display:inline-block;border:1px solid #101a21;flex-shrink:0}
+.swatch-player{background:#edf0d4}
+.swatch-drone{background:#e9bf62}
+.swatch-building{background:#e3ba83}
+.swatch-conveyor{background:#42535b}
+.swatch-ore{background:#93a7a1}
+.swatch-gate-open{background:#e3ba83}
+.swatch-gate-locked{background:#e9bf62}
+.swatch-fence{background:#9b794e}
+.swatch-cache{background:#a4b18b}
+.swatch-teleporter{background:#63d8d1}
+.swatch-fog{background:#101a21;border-color:#42535b}
+@media(max-height:520px){#nav-minimap-btn{display:none!important}}
+@media(max-width:680px){.map-popup-body{flex-direction:column;align-items:center}.map-legend-panel{width:100%}}
 #game-toast{position:absolute;left:50%;top:calc(var(--world-top,0px) + 110px);transform:translateX(-50%);max-width:min(520px,calc(100vw - 32px));padding:10px 14px;background:#101a21;border:2px solid #e9bf62;color:#edf0d4;z-index:400;pointer-events:none;display:none;font-size:12px;line-height:1.7}
 #game-toast.visible{display:block}
 body:has(.rpg-panel[data-open])::before{content:'';position:fixed;inset:0;background:#101a21b8;z-index:150}
