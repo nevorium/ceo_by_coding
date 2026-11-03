@@ -3,6 +3,7 @@
  * Saves profile data, coin balance, items, active scripts, grid tiles, and active drones.
  */
 import Drone from '../entities/Drone.js';
+import { GATES } from '../config/constants.js';
 
 const LOCAL_SAVE_KEY = 'ceoByCode_savefile';
 
@@ -317,15 +318,11 @@ export default class SaveSystem {
       this.scene.unlockedZones = { zone2: false, zone3: false, zone4: false, zone5: false };
     }
     if (this.scene.gridManager) {
-      this.scene.gridManager.setGate(19, 10, 'zone2', !this.scene.unlockedZones.zone2);
-      this.scene.gridManager.setGate(10, 19, 'zone3', !this.scene.unlockedZones.zone3);
-      this.scene.gridManager.setGate(39, 20, 'zone4', !this.scene.unlockedZones.zone4);
-      this.scene.gridManager.setGate(20, 39, 'zone5', !this.scene.unlockedZones.zone5);
-      if (this.scene.updateTileSprite) {
-        this.scene.updateTileSprite(19, 10);
-        this.scene.updateTileSprite(10, 19);
-        this.scene.updateTileSprite(39, 20);
-        this.scene.updateTileSprite(20, 39);
+      for (const gate of Object.values(GATES)) {
+        this.scene.gridManager.setGate(gate.x, gate.y, gate.key, !this.scene.unlockedZones[gate.key]);
+        if (this.scene.updateTileSprite) {
+          this.scene.updateTileSprite(gate.x, gate.y);
+        }
       }
     }
     if (typeof this.scene._updateCameraBounds === 'function') {

@@ -1,4 +1,6 @@
 /** One modal at a time, with focus restoration and a shared input lock. */
+import { ZONE_LABELS, UNKNOWN_ZONE_LABEL } from '../config/constants.js';
+
 export default class PanelManager {
   constructor(scene) {
     this.scene = scene;
@@ -53,16 +55,12 @@ export default class PanelManager {
     else if (restoreFocus) document.getElementById('btn-toggle-editor')?.focus({ preventScroll: true });
   }
   updateHudZone() {
-    const zones = {
-      zone1: 'Kebun Perintis',
-      zone2: 'Bengkel Artisan',
-      zone3: 'Lembah Tambang',
-      zone4: 'Laboratorium',
-      zone5: 'Hutan Liar Selatan',
-    };
-    const zone = this.scene._getPlayerZone?.() || 'zone1';
+    const zone = this.scene._getPlayerZone?.() || null;
     const el = document.getElementById('workspace-zone');
-    if (el && el.dataset.zone !== zone) { el.textContent = zones[zone] || 'Zona Eksplorasi'; el.dataset.zone = zone; }
+    if (el && el.dataset.zone !== (zone || 'unknown')) {
+      el.textContent = (zone && ZONE_LABELS[zone]) || UNKNOWN_ZONE_LABEL;
+      el.dataset.zone = zone || 'unknown';
+    }
   }
   destroy() { document.removeEventListener('keydown', this.onKey, true); this.close(false); }
 }

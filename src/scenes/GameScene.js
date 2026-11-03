@@ -6,7 +6,8 @@ import Phaser from 'phaser';
 import {
   TILE_SIZE, GRID_COLS, GRID_ROWS,
   GAME_WIDTH, GAME_HEIGHT, COLORS,
-  STARTING_COINS, GATES, ZONE_BOUNDS
+  STARTING_COINS, GATES, ZONE_BOUNDS,
+  ZONE_LABELS, UNKNOWN_ZONE_LABEL
 } from '../config/constants.js';
 import ZoneMap from '../systems/ZoneMap.js';
 import GridManager from '../systems/GridManager.js';
@@ -42,6 +43,7 @@ import WildlifeSystem from '../systems/WildlifeSystem.js';
 import StorageUI from '../ui/StorageUI.js';
 import DragManager from '../systems/DragManager.js';
 import TutorialSystem from '../systems/TutorialSystem.js';
+import NavigationSystem from '../systems/NavigationSystem.js';
 import { getItem } from '../data/items.js';
 import { isWarehouseStorable } from '../data/buildings.js';
 
@@ -131,6 +133,7 @@ export class GameScene extends Phaser.Scene {
     this.marketUI = new MarketUI(this, this.economySystem, this.inventorySystem);
     this.machineUI = new MachineUI(this, this.machineSystem, this.inventorySystem);
     this.storageUI = new StorageUI(this);
+    this.navigationSystem = new NavigationSystem(this);
 
     // Buyer NPC sprite field
     this.buyerNPCSprite = null;
@@ -332,9 +335,10 @@ export class GameScene extends Phaser.Scene {
         },
         tp: (tx, ty) => {
           if (this.player) {
-            this.player.setPosition(tx * TILE_SIZE, ty * TILE_SIZE);
-            this.player.tileX = tx;
-            this.player.tileY = ty;
+            this.player.setTilePosition(tx, ty);
+            if (this.cameras?.main) {
+              this.cameras.main.centerOn(this.player.x, this.player.y);
+            }
             console.log(`[Dev] Teleported to tile (${tx}, ${ty})`);
           }
         },
@@ -416,6 +420,7 @@ export class GameScene extends Phaser.Scene {
     if (this.hud) {
       this.hud.update();
     }
+    this.navigationSystem?.tick();
     this.panelManager?.updateHudZone();
     this._updateMachineVisuals(time);
 
@@ -1507,22 +1512,11 @@ export class GameScene extends Phaser.Scene {
   _getPlayerZone() {
     const px = this.player ? this.player.tileX : 5;
     const py = this.player ? this.player.tileY : 5;
-    if (px <= 19 && py <= 19) return 'zone1';
-    if (px >= 20 && px <= 39 && py <= 19) return 'zone2';
-    if (px <= 39 && py >= 40) return 'zone5';
-    if (px <= 39 && py >= 20) return 'zone3';
-    return 'zone4';
+    return ZoneMap.getZoneAt(px, py);
   }
 
   _showZoneBanner(zoneKey) {
-    const zoneNames = {
-      zone1: 'Zone 1: Starter Farm',
-      zone2: 'Zone 2: Artisan Refineries',
-      zone3: 'Zone 3: Mining Cave',
-      zone4: 'Zone 4: Advanced Tech Lab',
-      zone5: 'Zone 5: Southern Wilds'
-    };
-    const displayName = zoneNames[zoneKey] || 'Unknown Area';
+    const displayName = (zoneKey && ZONE_LABELS[zoneKey]) || UNKNOWN_ZONE_LABEL;
 
     // Destroy previous banner if animating
     if (this.zoneBannerContainer) {

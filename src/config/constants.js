@@ -65,3 +65,13 @@ export const GATES = {
   gate4: { x: 39, y: 20, cost: 15000, level: 8, itemReqs: [{ id: 'copper_ingot', count: 5 }, { id: 'iron_ingot', count: 5 }], key: 'zone4' },
   gate5: { x: 20, y: 39, itemReqs: [{ id: 'stone', count: 10 }, { id: 'iron_ingot', count: 2 }], key: 'zone5' },
 };
+
+export const ZONE_LABELS = Object.freeze({
+  zone1: 'Kebun Perintis',
+  zone2: 'Bengkel Artisan',
+  zone3: 'Lembah Tambang',
+  zone4: 'Laboratorium',
+  zone5: 'Hutan Liar Selatan',
+});
+
+export const UNKNOWN_ZONE_LABEL = 'Wilayah Tak Dikenal';
