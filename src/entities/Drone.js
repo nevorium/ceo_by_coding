@@ -470,11 +470,11 @@ export default class Drone extends Phaser.GameObjects.Sprite {
       this.scene.time.delayedCall(200, () => { if(this.scene)this.setFlipX(!this.flipX); });
       return;
     }
-    const color=actionName==='water'?0x63d8d1:actionName==='mine'?0x93a7a1:['harvest','crop','plant'].includes(actionName)?0xe9bf62:0x9b794e;
-    for(let i=0;i<4;i++){
-      const p=this.scene.add.rectangle(Math.round(this.x)+Phaser.Math.Between(-8,8),Math.round(this.y)+8,2,2,color).setDepth(16);
-      this.scene.time.addEvent({delay:80,repeat:3,callback:()=>{p.y+=actionName==='water'?2:-2;}});
-      this.scene.time.delayedCall(350,()=>p.destroy());
+    const color = (actionName === 'water' || actionName === 'teleport') ? 0x63d8d1 : actionName === 'mine' ? 0x93a7a1 : ['harvest', 'crop', 'plant'].includes(actionName) ? 0xe9bf62 : 0x9b794e;
+    for (let i = 0; i < 6; i++) {
+      const p = this.scene.add.rectangle(Math.round(this.x) + Phaser.Math.Between(-8, 8), Math.round(this.y) + 8, 2, 2, color).setDepth(16);
+      this.scene.time.addEvent({ delay: 80, repeat: 3, callback: () => { p.y += (actionName === 'water' || actionName === 'teleport') ? 2 : -2; } });
+      this.scene.time.delayedCall(350, () => p.destroy());
     }
   }
 

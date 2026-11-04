@@ -36,6 +36,7 @@ export default class NavigationSystem {
     this.events = new UniversalEventEmitter();
     this._pos = { x: -1, y: -1 };
     this._revealSig = '';
+    this.pin = null;
 
     // Relay: building changes & opened caches change map markers
     if (scene?.buildingSystem?.events?.on) {
@@ -43,6 +44,30 @@ export default class NavigationSystem {
     }
     if (scene?.wildlifeSystem?.events?.on) {
       scene.wildlifeSystem.events.on('cache-opened', () => this.events.emit('markers-changed'));
+    }
+  }
+
+  /**
+   * Set custom player waypoint pin.
+   * @param {number} x
+   * @param {number} y
+   */
+  setPin(x, y) {
+    if (typeof x !== 'number' || typeof y !== 'number' || x < 0 || y < 0 || x >= 60 || y >= 60) {
+      this.clearPin();
+      return;
+    }
+    this.pin = { x: Math.trunc(x), y: Math.trunc(y) };
+    this.events.emit('markers-changed');
+  }
+
+  /**
+   * Clear active player waypoint pin.
+   */
+  clearPin() {
+    if (this.pin !== null) {
+      this.pin = null;
+      this.events.emit('markers-changed');
     }
   }
 
@@ -214,6 +239,17 @@ export default class NavigationSystem {
           label: `Gerbang ${ZONE_LABELS[g.key] || g.key}`,
         });
       }
+    }
+
+    // 8. Custom Player Waypoint Pin
+    if (this.pin) {
+      markers.push({
+        kind: 'pin',
+        id: 'pin',
+        x: this.pin.x,
+        y: this.pin.y,
+        label: `Pin (${this.pin.x}, ${this.pin.y})`,
+      });
     }
 
     return markers;

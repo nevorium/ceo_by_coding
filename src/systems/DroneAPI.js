@@ -155,6 +155,13 @@ export default class DroneAPI {
       wait(seconds) {
         self._enqueue('wait', [seconds]);
       },
+      /**
+       * Teleport drone between teleporter pads. Drone must be adjacent to a teleporter pad.
+       * @param {string} destination - Name or ID of target teleporter pad (e.g. 'TP-2')
+       */
+      teleport(destination) {
+        self._enqueue('teleport', [destination]);
+      },
       checkNode() {
         return self._checkNode();
       },
@@ -281,6 +288,7 @@ export default class DroneAPI {
         case 'retrieveFromMachine': await this._handleRetrieveFromMachine(action.args[0]); break;
         case 'deliverToSpecialBuyer': await this._handleDeliverToSpecialBuyer(); break;
         case 'collect':          await this._handleCollect(); break;
+        case 'teleport':         await this._handleTeleport(action.args[0]); break;
         default:
           console.warn(`DroneAPI: unknown action type "${action.type}"`);
           break;
@@ -1162,5 +1170,67 @@ export default class DroneAPI {
     const { tileX, tileY } = this.drone;
     const tile = this.gridManager?.getTile(tileX, tileY);
     return tile?.hasPlant ? tile.growthStage : -1;
+  }
+
+  /**
+   * Handle drone teleportation between teleporter pads.
+   * Drone must be adjacent to a teleporter pad.
+   * @param {string} destination - Target pad name or ID
+   */
+  async _handleTeleport(destination) {
+    const { tileX, tileY } = this.drone;
+    const pads = this.drone.scene?.teleportSystem?.getPads() || [];
+
+    // Find pad adjacent to (or on) current drone position
+    const sourcePad = pads.find(p => {
+      const dx = Math.abs(p.x - tileX);
+      const dy = Math.abs(p.y - tileY);
+      return (dx + dy === 1) || (dx === 0 && dy === 0);
+    });
+
+    if (!sourcePad) {
+      throw new Error("Drone must be adjacent to a teleporter pad to teleport.");
+    }
+
+    if (!destination) {
+      throw new Error("Teleport requires a destination pad name or ID.");
+    }
+
+    const dest = pads.find(p =>
+      p.id === destination ||
+      (p.name && p.name.toLowerCase() === String(destination).trim().toLowerCase())
+    );
+
+    if (!dest) {
+      throw new Error(`Teleporter destination "${destination}" not found.`);
+    }
+
+    if (dest.id === sourcePad.id) {
+      throw new Error("Cannot teleport to the same teleporter pad.");
+    }
+
+    const isUnlocked = this.drone.scene?.navigationSystem?.isRevealed
+      ? this.drone.scene.navigationSystem.isRevealed(dest.zoneKey)
+      : true;
+
+    if (!isUnlocked) {
+      throw new Error(`Teleporter destination "${dest.name}" is in a locked zone.`);
+    }
+
+    const arrival = this.drone.scene?.teleportSystem?.findArrivalTile(dest.x, dest.y);
+    if (!arrival) {
+      throw new Error(`Teleporter destination "${dest.name}" has no clear arrival tile.`);
+    }
+
+    this.drone.setTilePosition(arrival.x, arrival.y);
+    this.drone.animateAction('teleport');
+
+    await new Promise(resolve => {
+      if (this.drone.scene?.time?.delayedCall) {
+        this.drone.scene.time.delayedCall(250, resolve);
+      } else {
+        resolve();
+      }
+    });
   }
 }

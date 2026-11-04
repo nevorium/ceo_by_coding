@@ -213,5 +213,9 @@ progress{display:block;width:100%;height:8px;accent-color:#63d8d1;border:0;backg
 .teleporter-empty{padding:14px;background:#101a21;border:1px dashed #42535b;color:#93a7a1;font-size:11px;text-align:center;line-height:1.6}
 .teleporter-footer{border-top:1px solid #42535b;padding-top:8px}
 .teleporter-hint{font-size:9.5px;color:#93a7a1}
+.btn-tp-map{background:#22343c;border:1px solid #e9bf62;color:#e9bf62;padding:6px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
+.btn-tp-map:hover{background:#18262f;border-color:#edf0d4;color:#edf0d4}
+.swatch-plant{background:#4a7c59}
+.swatch-pin{background:#63d8d1;border:1px solid #edf0d4}
 
 

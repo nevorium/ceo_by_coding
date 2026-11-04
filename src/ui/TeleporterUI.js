@@ -17,10 +17,22 @@ export default class TeleporterUI {
     this.nameInput = typeof document !== 'undefined' ? document.getElementById('teleporter-name-input') : null;
     this.saveNameBtn = typeof document !== 'undefined' ? document.getElementById('btn-save-teleporter-name') : null;
     this.listContainer = typeof document !== 'undefined' ? document.getElementById('teleporter-list') : null;
+    this.openMapBtn = typeof document !== 'undefined' ? document.getElementById('btn-teleport-open-map') : null;
 
     if (this.scene?.panelManager && this.element) {
       this.scene.panelManager.register('teleporter-popup', () => {
         this.currentPadId = null;
+      });
+    }
+
+    if (this.openMapBtn) {
+      this.openMapBtn.addEventListener('click', () => {
+        if (this.scene?.navigationHUD && this.currentPadId) {
+          this.scene.navigationHUD.openWorldMap({
+            travelMode: true,
+            sourcePadId: this.currentPadId,
+          });
+        }
       });
     }
 

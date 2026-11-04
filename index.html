@@ -1986,6 +1986,14 @@ if (needsTransport) {
           <div class="api-desc">Pulls all items from an adjacent drone's inventory. Requires **Supplier Module **.</div>
         </div>
 
+        <div class="api-card">
+          <div class="api-header">
+            <span class="api-signature">drone.teleport(destination)</span>
+            <button class="btn-copy" data-snippet="drone.teleport('TP-2');">Copy</button>
+          </div>
+          <div class="api-desc">Berpindah instan ke teleporter lain (contoh: 'TP-2'). Drone harus berdiri di sebelah pad teleporter asal.</div>
+        </div>
+
         <div class="guide-category-header"> CATEGORY: SELLER DRONES & NPC BUYERS</div>
 
         <div class="api-card">
@@ -2224,6 +2232,8 @@ if (needsTransport) {
           <span id="map-hover-zone" class="map-hover-sub">Gerakkan kursor ke peta</span>
           <span id="map-hover-entity" class="map-hover-entity">-</span>
           <button type="button" id="btn-map-copy-pos" class="btn-map-action" title="Salin koordinat pemain">Salin Posisiku</button>
+          <button type="button" id="btn-map-toggle-farm" class="btn-map-action" title="Tampilkan atau sembunyikan lapisan lahan pertanian">🌾 Lahan: OFF</button>
+          <button type="button" id="btn-map-pin" class="btn-map-action" title="Pasang atau hapus pin waypoint di kursor">📍 Pasang Pin</button>
         </div>
         <div class="map-legend-section">
           <h3>Legenda</h3>
@@ -2238,6 +2248,8 @@ if (needsTransport) {
             <li><span class="legend-swatch swatch-fence"></span> Pagar</li>
             <li><span class="legend-swatch swatch-cache"></span> Peti Kuno</li>
             <li><span class="legend-swatch swatch-teleporter"></span> Teleporter</li>
+            <li><span class="legend-swatch swatch-plant"></span> Tanaman / Lahan</li>
+            <li><span class="legend-swatch swatch-pin"></span> Waypoint Pin</li>
             <li><span class="legend-swatch swatch-fog"></span> Terkunci (Fog)</li>
           </ul>
         </div>
@@ -2259,6 +2271,7 @@ if (needsTransport) {
         <label for="teleporter-name-input">Nama:</label>
         <input type="text" id="teleporter-name-input" maxlength="16" placeholder="TP-1" autocomplete="off">
         <button type="button" id="btn-save-teleporter-name" class="btn-tp-save">Ubah</button>
+        <button type="button" id="btn-teleport-open-map" class="btn-tp-map" title="Buka peta untuk memilih tujuan">🗺️ Peta Travel</button>
       </div>
       <div class="teleporter-destinations">
         <h3 class="teleporter-dest-title">Tujuan</h3>

@@ -50,6 +50,8 @@ export default class NavigationHUD {
     this.hoverZoneEl = typeof document !== 'undefined' ? document.getElementById('map-hover-zone') : null;
     this.hoverEntityEl = typeof document !== 'undefined' ? document.getElementById('map-hover-entity') : null;
     this.copyPosBtn = typeof document !== 'undefined' ? document.getElementById('btn-map-copy-pos') : null;
+    this.toggleFarmBtn = typeof document !== 'undefined' ? document.getElementById('btn-map-toggle-farm') : null;
+    this.pinBtn = typeof document !== 'undefined' ? document.getElementById('btn-map-pin') : null;
 
     // Offscreen 60x60 base terrain canvas buffer
     this.terrainCanvas = typeof document !== 'undefined' && typeof document.createElement === 'function'
@@ -66,11 +68,15 @@ export default class NavigationHUD {
     this._mapScale = 6;
     this._currentPos = { x: 0, y: 0, zoneKey: null, zoneLabel: '' };
     this._hoverPos = { x: -1, y: -1 };
+    this._travelMode = false;
+    this._travelSourcePadId = null;
+    this._showFarm = false;
 
     // Register with PanelManager if available
     if (this.scene?.panelManager && this.mapPopup) {
       this.scene.panelManager.register('map-popup', () => {
-        // on close hook
+        this._travelMode = false;
+        this._travelSourcePadId = null;
       });
     }
 
@@ -120,6 +126,12 @@ export default class NavigationHUD {
     }
     if (this.copyPosBtn) {
       this.copyPosBtn.addEventListener('click', this._onCopyPosClick);
+    }
+    if (this.toggleFarmBtn) {
+      this.toggleFarmBtn.addEventListener('click', () => this.toggleFarmLayer());
+    }
+    if (this.pinBtn) {
+      this.pinBtn.addEventListener('click', () => this.togglePin());
     }
 
     // Attach NavigationSystem events
@@ -210,8 +222,19 @@ export default class NavigationHUD {
 
   /**
    * Open the World Map popup modal.
+   * @param {object} [options]
+   * @param {boolean} [options.travelMode=false]
+   * @param {string|null} [options.sourcePadId=null]
    */
-  openWorldMap() {
+  openWorldMap(options = {}) {
+    this._travelMode = Boolean(options.travelMode);
+    this._travelSourcePadId = options.sourcePadId || null;
+
+    const titleEl = typeof document !== 'undefined' ? document.getElementById('map-popup-title') : null;
+    if (titleEl) {
+      titleEl.textContent = this._travelMode ? 'Mode Perjalanan Peta' : 'Peta Dunia';
+    }
+
     if (this.scene?.panelManager) {
       this.scene.panelManager.open('map-popup', this.minimapBtn || this.worldMapBtn);
     } else if (this.mapPopup) {
@@ -226,12 +249,52 @@ export default class NavigationHUD {
    * Close the World Map popup modal.
    */
   closeWorldMap() {
+    this._travelMode = false;
+    this._travelSourcePadId = null;
+    const titleEl = typeof document !== 'undefined' ? document.getElementById('map-popup-title') : null;
+    if (titleEl) {
+      titleEl.textContent = 'Peta Dunia';
+    }
+
     if (this.scene?.panelManager) {
       this.scene.panelManager.close();
     } else if (this.mapPopup) {
       this.mapPopup.hidden = true;
       this.mapPopup.dataset.open = 'false';
     }
+  }
+
+  /**
+   * Toggle farm layer visibility on the map.
+   */
+  toggleFarmLayer() {
+    this._showFarm = !this._showFarm;
+    this._terrainDirty = true;
+    if (this.toggleFarmBtn) {
+      this.toggleFarmBtn.textContent = this._showFarm ? '🌾 Lahan: ON' : '🌾 Lahan: OFF';
+    }
+    this.render(true);
+  }
+
+  /**
+   * Toggle or place a player waypoint pin.
+   */
+  togglePin() {
+    if (!this.navigationSystem) return;
+
+    if (this.navigationSystem.pin) {
+      this.navigationSystem.clearPin();
+      if (this.pinBtn) this.pinBtn.textContent = '📍 Pasang Pin';
+      this.scene?.hud?.showMessage?.('📍 Pin waypoint dihapus', 1800);
+    } else {
+      const target = (this._hoverPos.x >= 0 && this._hoverPos.y >= 0)
+        ? this._hoverPos
+        : this._currentPos;
+      this.navigationSystem.setPin(target.x, target.y);
+      if (this.pinBtn) this.pinBtn.textContent = '📍 Hapus Pin';
+      this.scene?.hud?.showMessage?.(`📍 Pin dipasang di (${target.x}, ${target.y})`, 2000);
+    }
+    this.render(true);
   }
 
   /**
@@ -310,7 +373,7 @@ export default class NavigationHUD {
 
     // 1. Redraw base terrain if dirty
     if (this._terrainDirty && this.terrainCtx) {
-      drawTerrain(this.terrainCtx, this.navigationSystem, this.scene?.gridManager);
+      drawTerrain(this.terrainCtx, this.navigationSystem, this.scene?.gridManager, { showFarm: this._showFarm });
       this._terrainDirty = false;
     }
 
@@ -333,6 +396,7 @@ export default class NavigationHUD {
         scale: this._mapScale,
         cameraRect,
         blinkOn,
+        travelMode: this._travelMode,
       });
     }
   }
@@ -375,7 +439,15 @@ export default class NavigationHUD {
       );
 
       if (foundMarker) {
-        this.hoverEntityEl.textContent = foundMarker.label;
+        if (this._travelMode && foundMarker.kind === 'teleporter') {
+          if (foundMarker.id === this._travelSourcePadId) {
+            this.hoverEntityEl.textContent = `${foundMarker.label} (Pad Asal)`;
+          } else {
+            this.hoverEntityEl.textContent = `✨ Klik untuk Teleport ke ${foundMarker.label}`;
+          }
+        } else {
+          this.hoverEntityEl.textContent = foundMarker.label;
+        }
       } else if (ZoneMap.isFenceTile(tileX, tileY)) {
         this.hoverEntityEl.textContent = 'Pagar Pembatas';
       } else {
@@ -400,7 +472,7 @@ export default class NavigationHUD {
   }
 
   /**
-   * Handle clicking on the big world map to copy coordinates.
+   * Handle clicking on the big world map to copy coordinates or trigger teleportation in travel mode.
    * @param {PointerEvent} event
    */
   _handleMapClick(event) {
@@ -413,6 +485,34 @@ export default class NavigationHUD {
 
     const tileX = Math.max(0, Math.min(GRID_COLS - 1, Math.floor(offsetX / scale)));
     const tileY = Math.max(0, Math.min(GRID_ROWS - 1, Math.floor(offsetY / scale)));
+
+    // In Travel Mode: clicking a teleporter pad executes travel
+    if (this._travelMode) {
+      const pads = this.scene?.teleportSystem?.getPads ? this.scene.teleportSystem.getPads() : [];
+      const clickedPad = pads.find(p => p.x === tileX && p.y === tileY);
+      if (clickedPad) {
+        if (clickedPad.id === this._travelSourcePadId) {
+          this.scene?.hud?.showMessage?.('Ini adalah teleporter asal.', 2000);
+          return;
+        }
+        const res = this.scene?.teleportSystem?.travel(this._travelSourcePadId, clickedPad.id);
+        if (res?.ok) {
+          this.closeWorldMap();
+          this.scene?.teleporterUI?.close();
+          this.scene?.hud?.showMessage?.(`✨ Berpindah ke ${clickedPad.name || 'tujuan'}!`, 2200);
+        } else {
+          const reasonMessages = {
+            cooldown: 'Teleporter masih mengisi daya.',
+            moving: 'Berhenti dulu sebelum teleport.',
+            zone_locked: 'Zona tujuan belum terbuka.',
+            blocked: 'Area tujuan terhalang. Kosongkan petak di sekitar teleporter tujuan.',
+            missing: 'Teleporter tujuan tidak ditemukan.',
+          };
+          this.scene?.hud?.showMessage?.(reasonMessages[res?.reason] || 'Gagal berpindah.', 2500);
+        }
+        return;
+      }
+    }
 
     const text = `${tileX}, ${tileY}`;
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {

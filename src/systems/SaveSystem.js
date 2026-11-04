@@ -3,7 +3,8 @@
  * Saves profile data, coin balance, items, active scripts, grid tiles, and active drones.
  */
 import Drone from '../entities/Drone.js';
-import { GATES } from '../config/constants.js';
+import ZoneMap from './ZoneMap.js';
+import { GATES, TILE_SIZE, GRID_COLS, GRID_ROWS } from '../config/constants.js';
 
 const LOCAL_SAVE_KEY = 'ceoByCode_savefile';
 
@@ -107,6 +108,10 @@ export default class SaveSystem {
         slots: [...this.scene.hotbar.slots],
         quantities: [...this.scene.hotbar.slotQuantities],
         activeSlot: this.scene.hotbar.activeSlot,
+      } : null,
+      player: this.scene.player ? {
+        tileX: this.scene.player.tileX,
+        tileY: this.scene.player.tileY,
       } : null,
     };
   }
@@ -327,6 +332,27 @@ export default class SaveSystem {
     }
     if (typeof this.scene._updateCameraBounds === 'function') {
       this.scene._updateCameraBounds();
+    }
+
+    // 6b. Restore Player Position (validating unlocked zone and walkability)
+    if (data.player && typeof data.player.tileX === 'number' && typeof data.player.tileY === 'number') {
+      const px = Math.trunc(data.player.tileX);
+      const py = Math.trunc(data.player.tileY);
+      const cols = this.scene.gridManager?.cols ?? GRID_COLS;
+      const rows = this.scene.gridManager?.rows ?? GRID_ROWS;
+      if (px >= 0 && px < cols && py >= 0 && py < rows) {
+        const zoneKey = ZoneMap.getZoneAt(px, py);
+        const isRevealed = zoneKey === 'zone1' || Boolean(this.scene.unlockedZones?.[zoneKey]);
+        const isWalkable = this.scene.gridManager ? this.scene.gridManager.isWalkable(px, py) : true;
+        if (isRevealed && isWalkable && this.scene.player) {
+          this.scene.player.setTilePosition(px, py);
+          if (this.scene.cameras?.main) {
+            const cx = px * TILE_SIZE + TILE_SIZE / 2;
+            const cy = py * TILE_SIZE + TILE_SIZE / 2;
+            this.scene.cameras.main.centerOn(cx, cy);
+          }
+        }
+      }
     }
 
     // 7. Restore Mined Ores (clear them from grid if respawn pending)

@@ -327,6 +327,17 @@ export default class ScriptSandbox {
         };
         interpreter.setProperty(droneObj, 'say', interpreter.createAsyncFunction(sayWrapper));
 
+        // teleport(destination)
+        const teleportWrapper = function(destination, callback) {
+          self.droneAPI._handleTeleport(String(destination)).then(() => {
+            callback();
+            self.runInterpreter();
+          }).catch((err) => {
+            self.handleAsyncError(err);
+          });
+        };
+        interpreter.setProperty(droneObj, 'teleport', interpreter.createAsyncFunction(teleportWrapper));
+
         // transferToPlayer()
         const transferToPlayerWrapper = function(callback) {
           self.droneAPI._handleTransferToPlayer().then(() => {

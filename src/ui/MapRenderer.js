@@ -19,6 +19,10 @@ export const MAP_COLORS = Object.freeze({
   drone: '#e9bf62',      // gold
   player: '#edf0d4',     // cream
   view: '#93a7a1',       // silver
+  tilled: '#9b794e',     // earth
+  plant: '#4a7c59',      // forest
+  harvest: '#e9bf62',    // gold
+  pin: '#63d8d1',        // cyan
 });
 
 /**
@@ -43,7 +47,7 @@ export function pickScale(availW, availH, { min = 4, max = 10 } = {}) {
  * @param {import('../systems/NavigationSystem.js').default} nav
  * @param {import('../systems/GridManager.js').default} grid
  */
-export function drawTerrain(ctx, nav, grid) {
+export function drawTerrain(ctx, nav, grid, { showFarm = false } = {}) {
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;
 
@@ -70,6 +74,10 @@ export function drawTerrain(ctx, nav, grid) {
           color = MAP_COLORS.conveyor;
         } else if (tile.isBuilding || tile.isMachine) {
           color = MAP_COLORS.building;
+        } else if (showFarm && (tile.hasPlant || tile.plant)) {
+          color = (tile.hasFruit || (tile.growthStage ?? 0) >= 3) ? MAP_COLORS.harvest : MAP_COLORS.plant;
+        } else if (showFarm && (tile.isTilled || tile.isWatered)) {
+          color = MAP_COLORS.tilled;
         }
       }
 
@@ -88,8 +96,9 @@ export function drawTerrain(ctx, nav, grid) {
  * @param {number} [options.scale=1] - Pixel scale (1 for minimap thumbnail, 4-10 for big map)
  * @param {{ x: number, y: number, w: number, h: number }|null} [options.cameraRect=null]
  * @param {boolean} [options.blinkOn=true] - Player blinking state (500ms cycle)
+ * @param {boolean} [options.travelMode=false] - Whether teleporter pad targets should pulse
  */
-export function drawView(ctx, terrainCanvas, markers = [], { scale = 1, cameraRect = null, blinkOn = true } = {}) {
+export function drawView(ctx, terrainCanvas, markers = [], { scale = 1, cameraRect = null, blinkOn = true, travelMode = false } = {}) {
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;
 
@@ -133,11 +142,27 @@ export function drawView(ctx, terrainCanvas, markers = [], { scale = 1, cameraRe
       case 'teleporter':
         ctx.fillStyle = MAP_COLORS.teleporter;
         ctx.fillRect(sx, sy, Math.max(1, scale), Math.max(1, scale));
+        if (travelMode && scale >= 3) {
+          ctx.strokeStyle = blinkOn ? MAP_COLORS.player : MAP_COLORS.teleporter;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(sx - 1.5, sy - 1.5, Math.max(1, scale) + 3, Math.max(1, scale) + 3);
+        }
         break;
 
       case 'cache':
         ctx.fillStyle = MAP_COLORS.cache;
         ctx.fillRect(sx, sy, Math.max(1, scale), Math.max(1, scale));
+        break;
+
+      case 'pin':
+      case 'waypoint':
+        ctx.fillStyle = MAP_COLORS.pin;
+        ctx.fillRect(sx, sy, Math.max(1, scale), Math.max(1, scale));
+        if (scale >= 3) {
+          ctx.strokeStyle = MAP_COLORS.player;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(sx - 0.5, sy - 0.5, Math.max(1, scale) + 1, Math.max(1, scale) + 1);
+        }
         break;
 
       default:
