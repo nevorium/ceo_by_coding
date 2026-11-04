@@ -2245,6 +2245,31 @@ if (needsTransport) {
     </div>
   </section>
 
+  <!-- Teleporter Modal (E on teleporter pad) -->
+  <section id="teleporter-popup" class="rpg-panel" hidden aria-labelledby="teleporter-title" role="dialog" aria-modal="true">
+    <header class="rpg-panel-header">
+      <div style="display:flex;align-items:center;gap:8px">
+        <h2 id="teleporter-title" style="margin:0;font:11px/1.7 'Press Start 2P',monospace;color:#63d8d1;">Teleporter</h2>
+        <span id="teleporter-subtitle" style="font-size:10px;color:#93a7a1">Pad Aktif: TP-1</span>
+      </div>
+      <button type="button" data-close-panel aria-label="Tutup teleporter">×</button>
+    </header>
+    <div class="teleporter-body">
+      <div class="teleporter-header-row">
+        <label for="teleporter-name-input">Nama:</label>
+        <input type="text" id="teleporter-name-input" maxlength="16" placeholder="TP-1" autocomplete="off">
+        <button type="button" id="btn-save-teleporter-name" class="btn-tp-save">Ubah</button>
+      </div>
+      <div class="teleporter-destinations">
+        <h3 class="teleporter-dest-title">Tujuan</h3>
+        <div id="teleporter-list" class="teleporter-list"></div>
+      </div>
+      <footer class="teleporter-footer">
+        <span class="teleporter-hint">Cooldown 3 dtk · Bongkar: tekan B lalu X</span>
+      </footer>
+    </div>
+  </section>
+
   <section id="machine-inspector" aria-labelledby="machine-title"><header class="rpg-panel-header"><h2 id="machine-title">Mesin</h2><button data-close-panel>Tutup ×</button></header><div id="machine-content" class="inspector-content"></div></section>
   <section id="market-inspector" aria-labelledby="market-title"><header class="rpg-panel-header"><h2 id="market-title">Pasar kebun</h2><button data-close-panel>Tutup ×</button></header><nav id="market-tabs" class="inspector-tabs"></nav><div id="market-content" class="inspector-content"></div></section>
   <script type="module" src="/src/main.js"></script>

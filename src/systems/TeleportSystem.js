@@ -128,6 +128,57 @@ export default class TeleportSystem {
   }
 
   /**
+   * Execute teleport travel between two pads with camera transition and motion lock.
+   * @param {string} fromId
+   * @param {string} toId
+   * @returns {{ ok: boolean, reason?: string, arrival?: {x: number, y: number}, from?: object, to?: object }}
+   */
+  travel(fromId, toId) {
+    const check = this.canTravel(fromId, toId);
+    if (!check.ok) return check;
+
+    const s = this.scene;
+    const cam = s?.cameras?.main;
+    const { arrival, from, to } = check;
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+    this.traveling = true;
+    if (s.player) s.player.isMoving = true;
+    s.tweens?.killTweensOf?.(s.player);
+
+    const jump = () => {
+      try {
+        s.player?.setTilePosition?.(arrival.x, arrival.y);
+        cam?.stopFollow?.();
+        const px = s.player?.x ?? (arrival.x * 32 + 16);
+        const py = s.player?.y ?? (arrival.y * 32 + 16);
+        cam?.centerOn?.(px, py);
+        cam?.startFollow?.(s.player, true, 0.1, 0.1);
+
+        if (!reduce) {
+          s._emitPixelParticles?.(arrival.x, arrival.y, 0x63d8d1, 12);
+          cam?.fadeIn?.(150);
+        }
+        this.lastTravelAt = s.time?.now || Date.now();
+        this.events.emit('traveled', { from, to, arrival });
+      } finally {
+        if (s.player) s.player.isMoving = false;
+        this.traveling = false;
+      }
+    };
+
+    if (reduce || !s.time?.delayedCall || !cam?.fadeOut) {
+      jump();
+    } else {
+      s._emitPixelParticles?.(from.x, from.y, 0x63d8d1, 12);
+      cam.fadeOut(120);
+      s.time.delayedCall(130, jump);
+    }
+
+    return { ok: true, arrival, from, to };
+  }
+
+  /**
    * Rename an existing teleporter pad.
    * @param {string} id
    * @param {string} name

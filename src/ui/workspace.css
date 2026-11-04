@@ -187,4 +187,31 @@ progress{display:block;width:100%;height:8px;accent-color:#63d8d1;border:0;backg
 .rpg-btn-primary{background:#63d8d1!important;color:#101a21!important;border:2px solid #63d8d1!important;font-weight:bold;font-family:'Press Start 2P',monospace;font-size:9px;padding:10px 18px;cursor:pointer;box-shadow:2px 2px 0 #101a21}
 .rpg-btn-primary:hover{background:#edf0d4!important;border-color:#edf0d4!important}
 
+/* Teleporter Modal (#teleporter-popup) */
+#teleporter-popup{width:min(540px,calc(100vw - 32px))!important}
+.teleporter-body{padding:14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;max-height:calc(100dvh - 120px)}
+.teleporter-header-row{display:flex;align-items:center;gap:8px;background:#101a21;border:2px solid #42535b;padding:8px 12px}
+.teleporter-header-row label{font-size:10px;font-family:'Press Start 2P',monospace;color:#93a7a1}
+#teleporter-name-input{flex:1;background:#22343c;border:1px solid #42535b;color:#edf0d4;padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+#teleporter-name-input:focus{border-color:#63d8d1;outline:none}
+.btn-tp-save{background:#22343c;border:1px solid #42535b;color:#63d8d1;padding:6px 12px;font-size:11px;cursor:pointer}
+.btn-tp-save:hover{border-color:#63d8d1;background:#18262f}
+.teleporter-destinations{display:flex;flex-direction:column;gap:8px}
+.teleporter-dest-title{margin:0;font-size:9px;font-family:'Press Start 2P',monospace;color:#e9bf62}
+.teleporter-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#42535b #101a21}
+.teleporter-item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#101a21;border:1px solid #42535b;padding:8px 12px;transition:border-color .15s}
+.teleporter-item:hover{border-color:#63d8d1}
+.teleporter-item.is-locked{opacity:0.6;border-style:dashed}
+.tp-info-main{display:flex;flex-direction:column;gap:2px}
+.tp-name{font-weight:bold;color:#edf0d4;font-size:12px}
+.tp-sub{font-size:10px;color:#93a7a1}
+.tp-meta{display:flex;align-items:center;gap:10px}
+.tp-distance{font-size:10px;color:#a4b18b}
+.btn-teleport-travel{background:rgba(99,216,209,0.15);border:2px solid #63d8d1;color:#63d8d1;padding:6px 12px;font-size:10px;cursor:pointer;font-family:'Press Start 2P',monospace}
+.btn-teleport-travel:hover{background:rgba(99,216,209,0.28);color:#edf0d4}
+.tp-locked-badge{font-size:9px;color:#e57373;border:1px solid #7a3c37;padding:3px 6px;background:#22343c}
+.teleporter-empty{padding:14px;background:#101a21;border:1px dashed #42535b;color:#93a7a1;font-size:11px;text-align:center;line-height:1.6}
+.teleporter-footer{border-top:1px solid #42535b;padding-top:8px}
+.teleporter-hint{font-size:9.5px;color:#93a7a1}
+
 

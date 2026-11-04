@@ -46,6 +46,7 @@ import TutorialSystem from '../systems/TutorialSystem.js';
 import NavigationSystem from '../systems/NavigationSystem.js';
 import NavigationHUD from '../ui/NavigationHUD.js';
 import TeleportSystem from '../systems/TeleportSystem.js';
+import TeleporterUI from '../ui/TeleporterUI.js';
 import { getItem } from '../data/items.js';
 import { isWarehouseStorable } from '../data/buildings.js';
 
@@ -138,6 +139,7 @@ export class GameScene extends Phaser.Scene {
     this.storageUI = new StorageUI(this);
     this.navigationSystem = new NavigationSystem(this);
     this.navigationHUD = new NavigationHUD(this, this.navigationSystem);
+    this.teleporterUI = new TeleporterUI(this);
 
     // Buyer NPC sprite field
     this.buyerNPCSprite = null;
@@ -977,11 +979,27 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** E key interaction — market, warehouse, drone equip, fauna, loot */
+  _getFacingPad() {
+    if (!this.player || !this.gridManager || !this.buildingSystem) return null;
+    const f = this.player.getFacingTile();
+    const t = this.gridManager.getTile(f.x, f.y);
+    return t?.isBuilding && t.buildingType === 'teleporter'
+      ? this.buildingSystem.buildings.get(t.buildingId)
+      : null;
+  }
+
+  /** E key interaction — teleporter, market, warehouse, drone equip, fauna, loot */
   _doInteract() {
     if (!this.player) return;
     const px = this.player.tileX;
     const py = this.player.tileY;
+
+    // Check teleporter pad facing player FIRST (T5)
+    const pad = this._getFacingPad();
+    if (pad) {
+      this.teleporterUI?.open(pad.id);
+      return;
+    }
 
     // Near market?
     if (this._isNearMarket()) {
@@ -1586,6 +1604,13 @@ export class GameScene extends Phaser.Scene {
 
   _updateInteractionPrompts() {
     if (!this.player) return;
+
+    // Check facing teleporter pad FIRST (T5)
+    const facingPad = this._getFacingPad();
+    if (facingPad) {
+      this._showPromptAt(facingPad.x * TILE_SIZE + TILE_SIZE / 2, facingPad.y * TILE_SIZE - 12, `[E] Teleport (${facingPad.name})`);
+      return;
+    }
 
     // 1. Check near buyer NPC
     const dxBuyer = Math.abs(this.player.tileX - 17);
